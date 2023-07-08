@@ -1,5 +1,7 @@
 import numpy as np
 import scipy as sp
+from scipy import special
+from scipy.sparse import linalg
 import sys
 import getopt
 import argparse
@@ -8,6 +10,18 @@ import bisect
 from functools import reduce
 
 np.set_printoptions(threshold=sys.maxsize)
+
+def TimePrint(start):
+    """
+    Print the time elapsed in a readable way
+    """
+    end = time.time()
+    dt = end - start
+    dtMin = dt/60.
+    print('-------- Time elapsed --------')
+    print(f'sec={dt}')
+    print(f'min={dtMin}')
+    print('------------------------------')
 
 def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0):
     """
@@ -211,6 +225,22 @@ def RotVecInt(stateTag, Ns, softcoreBasis=None, hardcore=True):
         rotatedTag = PomeranovTag([rotState])
     
     return rotatedTag
+    
+def FindRotatedIndex(index, L, r=1):
+    """
+    Take a spatial index and find the corresponding one after r rotation of the lattice
+    """
+    stateMat = np.array([[bit for bit in state[((i-1)*L):(i*L)]] for i in np.arange(L,0,-1)])
+    #print('Initial state mat:')
+    #print(stateMat)
+    rotMat = stateMat.copy()
+    for rot in range(r):
+        rotMat = np.rot90(rotMat)
+    #print('Rotated mat:')
+    #print(rotMat)
+    
+    return
+    
     
 def findIntRep(state, softcoreBasis=None, hardcore=True):
     """
@@ -609,7 +639,25 @@ def GenLatticeNNLinksOptimized(L):
                 linksArray[i][j].append(i*L + (j+1))
                 
     return linksArray
-            
+    
+def GetTunnelingDirection(initialState, finalState):
+    """
+    Take two states and returns the spatial indices related to the particle moving from
+    the initial state to the final state, e.g. [0,1,2,0],[1,1,1,0] --> (2,0)
+    """
+    initialState = np.array(initialState)
+    finalState = np.array(finalState)
+    # where XOR op. gets zero means that nothing has changed
+    xorState = initialState^finalState
+    indices = np.nonzero(xorState)[0]
+    if (finalState[indices[0]] > initialState[indices[0]]):
+        destinationIdx = indices[0]
+        startingIdx = indices[1]
+    else:
+        destinationIdx = indices[1]
+        startingIdx = indices[0]
+    
+    return startingIdx, destinationIdx
     
 def BuildHOneBody(binBasis, intBasis, linksVer, linksHor, J, FluxDensity, confinement, gamma=2, debug=False):
     """
@@ -833,10 +881,6 @@ def BuildHOneBodyC4Symmetry(repStatesArray, binBasis, L, links, J, FluxDensity, 
             #print(f'Acting with H on ket=|{currSubStateString}> (|{AssignTagToState(currSubStateString, n=1)}>)')
             currSubStatePhase = Phase(2.*np.pi*l*i / 4.)
             
-            #tmpPhaseIdx = EvaluateHofstadterPhaseShift(currSubStateInt, normFactor, L)
-            #print(f'Phase idx for state |{currSubStateInt}>={tmpPhaseIdx}')
-            #abPhase = Phase(2*np.pi*FluxDensity*tmpPhaseIdx)
-            
             # here the procedure is more or less the same as in BuildHOneBodyOptimized()
             # find the sites (idx) in which we have a particle
             filledIndices = list(i for i, x in enumerate(currSubStateString) if x == '1')
@@ -854,38 +898,23 @@ def BuildHOneBodyC4Symmetry(repStatesArray, binBasis, L, links, J, FluxDensity, 
                         if adaStateInt in intRepArray:
                             adaStateString = BitArrayToString(adaState)
                             adaInt = AssignTagToState(adaStateString, n=1)
-                            #print(f'Resulting row state bra=<{adaStateString}|')
-                            # Here find the rotation phase related to the representative of adaState
-                            #tmpPhaseIdxDag = CalcHofstadterPhaseFromRotation(adaState, L)
-                            
-                            #rotPhase = Phase(2*np.pi*FluxDensity*phaseMat[enumBasis[adaInt]][enumBasis[currSubStateInt]])
-                            #print(f'Phase idx for the matrix element <{adaStateString}|H|{currSubStateString}>={phaseMat[enumBasis[adaInt]][enumBasis[currSubStateInt]]}')
                             
                             rowH = intRepArray[adaStateInt]
                             normFactorRow = repStatesArray[rowH][1]
                             rowStatePhase = Phase(2.*np.pi*l*phaseRowIdx / 4.)
-                            
-                            #tmpPhaseIdxDag = EvaluateHofstadterPhaseShift(adaInt, normFactorRow, L)
-                            #abPhaseDag = Phase(-2*np.pi*FluxDensity*tmpPhaseIdxDag)
                                 
                             if (nnIndex == (idx+1)): # right-hopping
                                 Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*iCoord) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag*Phase(-2.*np.pi*FluxDensity*iCoord)}')
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))}')
                             elif (nnIndex == (idx-1)): # left-hopping
                                 Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*iCoord) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag*Phase(2.*np.pi*FluxDensity*iCoord)}')
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))}')
                             elif (nnIndex > (idx+1)): # upward
-                                #print('up')
                                 Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag}')
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))}')
                             elif (nnIndex < (idx-1)): #downward
-                                #print('down')
                                 Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag}')
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))}')
                             
                                 
                 # add confinement
@@ -898,16 +927,15 @@ def BuildHOneBodyC4SymmetryOptimized(repStatesArray, binBasis, L, links, J, Flux
     """
     Optimized version of BuildHOneBodyC4Symmetry()
     --- Optimization
-    Now we act only on the representative state (so get rid of one FOR loop inside each C4 state) and then we build the other matrix elements by rotating the
+    Now we act ONLY on the representative state (so get rid of one FOR loop inside each C4 state) and then we build the other matrix elements by rotating the
     resulting action on the representative, i.e. [R, a_d a] = 0 (rotation and hopping commute)
     """
-    print(f'Building the C4 Hamiltonian in sector l={l}')
+    print(f'Building the C4 Hamiltonian (optimized) in sector l={l}')
     Ns = L*L
     D = len(repStatesArray)
     c = FindCenter(L)
     # number of particles
     N = np.sum(binBasis[0])
-    print(f'Number of particles={N}')
     Hmat = sp.sparse.lil_matrix((D,D), dtype=complex)
     tmpMatElem = 0
     # recall the repStatesArray integers are sorted, so colH=0,1,2,3... as long as we span repStatesArray
@@ -919,63 +947,96 @@ def BuildHOneBodyC4SymmetryOptimized(repStatesArray, binBasis, L, links, J, Flux
         #n = n+1
         repStateInt = elem[0]
         normFactor = elem[1]
-        repStateBin = '{0:0' + str(Ns) + 'b}'
-        repStateBin = repStateBin.format(repStateInt)
-        repState = BitStringToArray(repStateBin)
-        # reconstruct the symmetric state from the representative
-        for i in np.arange(0,normFactor):
-            currSubState = RotVec(repState, r=i)
-            currSubStateString = BitArrayToString(currSubState)
-            currSubStateInt = AssignTagToState(currSubStateString, n=1)
-            #print(f'Acting with H on ket=|{currSubStateString}> (|{AssignTagToState(currSubStateString, n=1)}>)')
-            currSubStatePhase = Phase(2.*np.pi*l*i / 4.)
+        repStateString = IntToBinary(repStateInt, Ns)
+        repState = BitStringToArray(repStateString)
+        #print(f'Rep state={repStateString}')
             
-            # here the procedure is more or less the same as in BuildHOneBodyOptimized()
-            # find the sites (idx) in which we have a particle
-            filledIndices = list(i for i, x in enumerate(currSubStateString) if x == '1')
-            for idx in filledIndices:
-                iCoord = idx//L
-                jCoord = idx%L
-                aState, coeffA = prodA([idx], currSubState)
-                for nnIndex in links[idx//L][idx%L]:
-                    iNNCoord = nnIndex//L
-                    jNNCoord = nnIndex%L
-                    if (currSubState[nnIndex] == 0):
-                        adaState, coeffAdA = prodAd([nnIndex], aState, N)
-                        # find the representative of this state and the phase related
-                        adaStateInt, phaseRowIdx = findIntRep(adaState)
-                        if adaStateInt in intRepArray:
-                            #adaStateString = BitArrayToString(adaState)
-                            #adaInt = AssignTagToState(adaStateString, n=1)
+        # here the procedure is more or less the same as in BuildHOneBodyOptimized()
+        # find the sites (idx) in which we have a particle
+        filledIndices = list(i for i, x in enumerate(repStateString) if x == '1')
+        for idx in filledIndices:
+            iCoord = idx//L
+            jCoord = idx%L
+            aState, coeffA = prodA([idx], repState)
+            for nnIndex in links[iCoord][jCoord]:
+                iNNCoord = nnIndex//L
+                jNNCoord = nnIndex%L
+                if (repState[nnIndex] == 0):
+                    adaState, coeffAdA = prodAd([nnIndex], aState, N)
+                    # find the representative of this state and the phase related
+                    adaStateInt, phaseRowIdx = findIntRep(adaState)
+                    if adaStateInt in intRepArray:
+                        #adaStateString = BitArrayToString(adaState)
+                        #adaInt = AssignTagToState(adaStateString, n=1)
+                        #print(f'Row vector={BitArrayToString(adaState)}')
+                        
+                        rowH = intRepArray[adaStateInt]
+                        normFactorRow = repStatesArray[rowH][1]
+                        rowStatePhase = Phase(2.*np.pi*l*phaseRowIdx / 4.)
                             
-                            # Here we rotate the resulting AdA|ket> state (at most normFactorRow-phaseRowIdx times) and find the other matrix elements
+                        if (nnIndex == (idx+1)): # right-hopping
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))}')
+                        elif (nnIndex == (idx-1)): # left-hopping
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))}')
+                        elif (nnIndex > (idx+1)): # upward
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))}')
+                        elif (nnIndex < (idx-1)): #downward
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))}')
                             
-                            rowH = intRepArray[adaStateInt]
-                            normFactorRow = repStatesArray[rowH][1]
-                            rowStatePhase = Phase(2.*np.pi*l*phaseRowIdx / 4.)
-                                
-                            if (nnIndex == (idx+1)): # right-hopping
-                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*iCoord) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag*Phase(-2.*np.pi*FluxDensity*iCoord)}')
-                            elif (nnIndex == (idx-1)): # left-hopping
-                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*iCoord) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag*Phase(2.*np.pi*FluxDensity*iCoord)}')
-                            elif (nnIndex > (idx+1)): # upward
-                                #print('up')
-                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag}')
-                            elif (nnIndex < (idx-1)): #downward
-                                #print('down')
-                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))
-                                #tmpMatElem = -J * (1./np.sqrt(normFactor*normFactorRow)) * currSubStatePhase * np.conj(rowStatePhase) * abPhase * abPhaseDag
-                                #print(f'Matrix element phase <{adaStateString}|H|{currSubStateString}>/<{AssignTagToState(adaStateString, n=1)}|H|{AssignTagToState(currSubStateString, n=1)}> = {abPhase*abPhaseDag}')
+                        # Here we rotate the resulting AdA|ket> (and <bra| also) state (at most normFactorRow-phaseRowIdx-1 times) and find the other matrix elements (off-diagonal terms)
+                        for nbrRot in np.arange(1,normFactorRow):
+                            # The representative of this is still the representative of AdA|state>
+                            rotatedAdAKet = RotVec(adaState, r=nbrRot)
+                            #print(f'rotation-->{BitArrayToString(rotatedAdAKet)}')
+                            rotatedAdAKetInt = AssignTagToState(rotatedAdAKet, n=1)
+                            rotatedRowStatePhase = Phase(2.*np.pi*l*(phaseRowIdx+nbrRot) / 4.)
+                            # The representative of this is still repState, so no need to rotate it accordingly
+                            rotatedKet = RotVec(repState, r=nbrRot)
+                            rotatedKetPhase = Phase(2.*np.pi*l*nbrRot / 4.)
                             
-                                
-                # add confinement
-                Hmat[colH,colH] += currSubState[idx] * confinement * (Radius(iCoord, jCoord, c) ** gamma) * (1./normFactor)
+                            startIdx, destIdx = GetTunnelingDirection(rotatedKet, rotatedAdAKet)
+                            
+                            iRotCoord = startIdx//L
+                            jRotCoord = startIdx%L
+                            
+                            if (destIdx == (startIdx+1)):
+                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iRotCoord-c))
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iRotCoord-c))}')
+                            elif (destIdx == (startIdx-1)):
+                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iRotCoord-c))
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iRotCoord-c))}')
+                            elif (destIdx > (startIdx+1)):
+                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jRotCoord-c))
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jRotCoord-c))}')
+                            elif (destIdx < (startIdx-1)):
+                                Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jRotCoord-c))
+                                #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jRotCoord-c))}')
+            
+            # add confinement
+            Hmat[colH,colH] += repState[idx] * confinement * (Radius(iCoord, jCoord, c) ** gamma) * (1./normFactor)
+            
+            iPrevCoord = iCoord
+            jPrevCoord = jCoord
+            # Here we rotate for the diagonal elements (confinement) instead
+            for nbrRot in np.arange(1,normFactor):
+                rotatedKet = RotVec(repState, r=nbrRot)
+                rotatedKetString = BitArrayToString(rotatedKet)
+                #rotatedFilledIndices = list(i for i, x in enumerate(rotatedKetString) if x == '1')
+                
+                # Find the rotated coordinates of the rotated state
+                iRotCoord = jPrevCoord
+                jRotCoord = -iPrevCoord+(2*c)
+                rIdx = jRotCoord + L*iRotCoord
+                
+                Hmat[colH,colH] += rotatedKet[int(rIdx)] * confinement * (Radius(iRotCoord, jRotCoord, c) ** gamma) * (1./normFactor)
+                
+                iPrevCoord = iRotCoord
+                jPrevCoord = jRotCoord
+                    
         colH = colH + 1
     
     return Hmat
@@ -1054,6 +1115,119 @@ def BuildHOneBodySoftCoreC4Symmetry(repStatesArray, binBasis, L, links, J, FluxD
         colH = colH + 1
     
     return Hmat
+    
+def BuildHOneBodySoftCoreC4SymmetryOptimized(repStatesArray, binBasis, L, links, J, FluxDensity, confinement, gamma, l):
+    """
+    Optimized version of BuildHOneBodySoftCoreC4Symmetry() acting ONLY on the representative states
+    """
+    print(f'Building the C4 Hamiltonian (optimized) in sector l={l}')
+    Ns = L*L
+    D = len(repStatesArray)
+    c = FindCenter(L)
+    # number of particles
+    N = np.sum(binBasis[0])
+    Hmat = sp.sparse.lil_matrix((D,D), dtype=complex)
+    tmpMatElem = 0
+    # recall the repStatesArray integers are sorted, so colH=0,1,2,3... as long as we span repStatesArray
+    colH = 0
+    intRepArray = {subArray[0]: i for i, subArray in enumerate(repStatesArray)}
+    #n=0
+    for elem in repStatesArray:
+        #print(f'State n.{n}')
+        #n = n+1
+        repStateInt = elem[0]
+        normFactor = elem[1]
+        repState = binBasis[repStateInt-1]
+        repStateString = BitArrayToString(repState)
+        #print(f'Rep state={repStateString}')
+            
+        # here the procedure is more or less the same as in BuildHOneBodyOptimized()
+        # find the sites (idx) in which we have a particle
+        filledIndices = list(i for i, x in enumerate(repStateString) if x != '0')
+        for idx in filledIndices:
+            iCoord = idx//L
+            jCoord = idx%L
+            aState, coeffA = prodA([idx], repState, hardcore=False)
+            for nnIndex in links[iCoord][jCoord]:
+                iNNCoord = nnIndex//L
+                jNNCoord = nnIndex%L
+                adaState, coeffAdA = prodAd([nnIndex], aState, N, hardcore=False)
+                # find the representative of this state and the phase related
+                adaStateInt, phaseRowIdx = findIntRep(adaState, softcoreBasis=binBasis, hardcore=False)
+                if adaStateInt in intRepArray:
+                    #adaStateString = BitArrayToString(adaState)
+                    #adaInt = AssignTagToState(adaStateString, n=1)
+                    #print(f'Row vector={BitArrayToString(adaState)}')
+                    
+                    rowH = intRepArray[adaStateInt]
+                    normFactorRow = repStatesArray[rowH][1]
+                    rowStatePhase = Phase(2.*np.pi*l*phaseRowIdx / 4.)
+                        
+                    if (nnIndex == (idx+1)): # right-hopping
+                        Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))*coeffA*coeffAdA
+                        #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iCoord-c))}')
+                    elif (nnIndex == (idx-1)): # left-hopping
+                        Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))*coeffA*coeffAdA
+                        #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iCoord-c))}')
+                    elif (nnIndex > (idx+1)): # upward
+                        Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))*coeffA*coeffAdA
+                        #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jCoord-c))}')
+                    elif (nnIndex < (idx-1)): #downward
+                        Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))*coeffA*coeffAdA
+                        #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * np.conj(rowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jCoord-c))}')
+                        
+                    # Here we rotate the resulting AdA|ket> (and <bra| also) state (at most normFactorRow-phaseRowIdx-1 times) and find the other matrix elements (off-diagonal terms)
+                    for nbrRot in np.arange(1,normFactorRow):
+                        # The representative of this is still the representative of AdA|state>
+                        rotatedAdAKet = RotVec(adaState, r=nbrRot)
+                        #print(f'rotation-->{BitArrayToString(rotatedAdAKet)}')
+                        rotatedAdAKetInt = PomeranovTag([rotatedAdAKet])
+                        rotatedRowStatePhase = Phase(2.*np.pi*l*(phaseRowIdx+nbrRot) / 4.)
+                        # The representative of this is still repState, so no need to rotate it accordingly
+                        rotatedKet = RotVec(repState, r=nbrRot)
+                        rotatedKetPhase = Phase(2.*np.pi*l*nbrRot / 4.)
+                        
+                        startIdx, destIdx = GetTunnelingDirection(rotatedKet, rotatedAdAKet)
+                        
+                        iRotCoord = startIdx//L
+                        jRotCoord = startIdx%L
+                        
+                        if (destIdx == (startIdx+1)):
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iRotCoord-c))*coeffA*coeffAdA
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(iRotCoord-c))}')
+                        elif (destIdx == (startIdx-1)):
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iRotCoord-c))*coeffA*coeffAdA
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(iRotCoord-c))}')
+                        elif (destIdx > (startIdx+1)):
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jRotCoord-c))*coeffA*coeffAdA
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(-2.*np.pi*FluxDensity*0.5*(jRotCoord-c))}')
+                        elif (destIdx < (startIdx-1)):
+                            Hmat[rowH,colH] += -J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jRotCoord-c))*coeffA*coeffAdA
+                            #print(f'({rowH},{colH})={-J * (1./np.sqrt(normFactor*normFactorRow)) * rotatedKetPhase * np.conj(rotatedRowStatePhase) * Phase(2.*np.pi*FluxDensity*0.5*(jRotCoord-c))}')
+                                
+            # add confinement
+            Hmat[colH,colH] += repState[idx] * confinement * (Radius(iCoord, jCoord, c) ** gamma) * (1./normFactor)
+            
+            iPrevCoord = iCoord
+            jPrevCoord = jCoord
+            # Here we rotate for the diagonal elements (confinement) instead
+            for nbrRot in np.arange(1,normFactor):
+                rotatedKet = RotVec(repState, r=nbrRot)
+                rotatedKetString = BitArrayToString(rotatedKet)
+                
+                # Find the rotated coordinates of the rotated state
+                iRotCoord = jPrevCoord
+                jRotCoord = -iPrevCoord+(2*c)
+                rIdx = jRotCoord + L*iRotCoord
+                
+                Hmat[colH,colH] += rotatedKet[int(rIdx)] * confinement * (Radius(iRotCoord, jRotCoord, c) ** gamma) * (1./normFactor)
+                
+                iPrevCoord = iRotCoord
+                jPrevCoord = jRotCoord
+                    
+        colH = colH + 1
+        
+    return Hmat
                                 
 
 def BuildHTwoBodyOnsite(binBasis, intBasis, L, U):
@@ -1107,7 +1281,6 @@ def BuildHTwoBodyOnsiteC4(repStatesArray, binBasis, L, U):
     c = FindCenter(L)
     N = np.sum(binBasis[0])
     Hmat = sp.sparse.lil_matrix((D,D), dtype=complex)
-    tmpMatElem = 0
     # recall the repStatesArray integers are sorted, so colH=0,1,2,3... as long as we span repStatesArray
     colH = 0
     intRepArray = {subArray[0]: i for i, subArray in enumerate(repStatesArray)}
@@ -1128,6 +1301,55 @@ def BuildHTwoBodyOnsiteC4(repStatesArray, binBasis, L, U):
             
         colH = colH + 1
     
+    return Hmat
+    
+def BuildHTwoBodyOnsiteC4Optimized(repStatesArray, binBasis, L, U):
+    """
+    Optimized version of BuildHTwoBodyOnsiteC4() by acting ONLY on the representative state
+    """
+    print(f'Building the two-body interaction C4 Hamiltonian (optimized)')
+    Ns = L*L
+    D = len(repStatesArray)
+    c = FindCenter(L)
+    N = np.sum(binBasis[0])
+    Hmat = sp.sparse.lil_matrix((D,D), dtype=complex)
+    # recall the repStatesArray integers are sorted, so colH=0,1,2,3... as long as we span repStatesArray
+    colH = 0
+    intRepArray = {subArray[0]: i for i, subArray in enumerate(repStatesArray)}
+    for elem in repStatesArray:
+        #print(f'State n.{n}')
+        #n = n+1
+        repStateInt = elem[0]
+        normFactor = elem[1]
+        repState = binBasis[repStateInt-1]
+        repStateString = BitArrayToString(repState)
+
+        filledIndices = list(i for i, x in enumerate(repStateString) if x != '0')
+        for idx in filledIndices:
+            iCoord = idx//L
+            jCoord = idx%L
+            
+            Hmat[colH,colH] += (U/2.) * ( repState[idx] * (repState[idx] - 1) ) * (1./normFactor)
+            
+            iPrevCoord = iCoord
+            jPrevCoord = jCoord
+            
+            for nbrRot in np.arange(1,normFactor):
+                rotatedState = RotVec(repState, r=nbrRot)
+                rotatedStateString = BitArrayToString(rotatedState)
+                
+                # Find the rotated coordinates of the rotated state
+                iRotCoord = jPrevCoord
+                jRotCoord = -iPrevCoord+(2*c)
+                rIdx = jRotCoord + L*iRotCoord
+                
+                Hmat[colH,colH] += (U/2.) * ( rotatedState[int(rIdx)] * (rotatedState[int(rIdx)] - 1) ) * (1./normFactor)
+                
+                iPrevCoord = iRotCoord
+                jPrevCoord = jRotCoord
+                    
+        colH = colH + 1
+        
     return Hmat
     
 def BuildHThreeBodyOnsiteC4(repStatesArray, binBasis, L, U3):
@@ -1161,6 +1383,55 @@ def BuildHThreeBodyOnsiteC4(repStatesArray, binBasis, L, U3):
             
         colH = colH + 1
     
+    return Hmat
+    
+def BuildHThreeBodyOnsiteC4Optimized(repStatesArray, binBasis, L, U3):
+    """
+    Optimized version of BuildHThreeBodyOnsiteC4() by acting ONLY on the representative state
+    """
+    print(f'Building the two-body interaction C4 Hamiltonian (optimized)')
+    Ns = L*L
+    D = len(repStatesArray)
+    c = FindCenter(L)
+    N = np.sum(binBasis[0])
+    Hmat = sp.sparse.lil_matrix((D,D), dtype=complex)
+    # recall the repStatesArray integers are sorted, so colH=0,1,2,3... as long as we span repStatesArray
+    colH = 0
+    intRepArray = {subArray[0]: i for i, subArray in enumerate(repStatesArray)}
+    for elem in repStatesArray:
+        #print(f'State n.{n}')
+        #n = n+1
+        repStateInt = elem[0]
+        normFactor = elem[1]
+        repState = binBasis[repStateInt-1]
+        repStateString = BitArrayToString(repState)
+
+        filledIndices = list(i for i, x in enumerate(repStateString) if x != '0')
+        for idx in filledIndices:
+            iCoord = idx//L
+            jCoord = idx%L
+            
+            Hmat[colH,colH] += (U3/6.) * ( repState[idx] * (repState[idx] - 1) * (repState[idx] - 2) ) * (1./normFactor)
+            
+            iPrevCoord = iCoord
+            jPrevCoord = jCoord
+            
+            for nbrRot in np.arange(1,normFactor):
+                rotatedState = RotVec(repState, r=nbrRot)
+                rotatedStateString = BitArrayToString(rotatedState)
+                
+                # Find the rotated coordinates of the rotated state
+                iRotCoord = jPrevCoord
+                jRotCoord = -iPrevCoord+(2*c)
+                rIdx = jRotCoord + L*iRotCoord
+                
+                Hmat[colH,colH] += (U3/6.) * ( rotatedState[int(rIdx)] * (rotatedState[int(rIdx)] - 1) * (rotatedState[int(rIdx)] - 2) ) * (1./normFactor)
+                
+                iPrevCoord = iRotCoord
+                jPrevCoord = jRotCoord
+                    
+        colH = colH + 1
+        
     return Hmat
 
     
@@ -1325,7 +1596,9 @@ if __name__ == "__main__":
             #print(f'states={binaryStateStrings}')
 
             for c4Sector in np.arange(0,4):
-                HOneBodyC4 = BuildHOneBodyC4Symmetry(hardcoreC4Reps, basisVectors, L, links, J, FluxDensity, trapConf, 2, c4Sector)
+                start = time.time()
+                HOneBodyC4 = BuildHOneBodyC4SymmetryOptimized(hardcoreC4Reps, basisVectors, L, links, J, FluxDensity, trapConf, 2, c4Sector)
+                TimePrint(start)
 
                 #print("HAMILTONIAN:")
                 #print(HOneBodyC4)
@@ -1399,17 +1672,17 @@ if __name__ == "__main__":
             
             HOneBodySoftcoreC4 = sp.sparse.lil_matrix((redDim,redDim), dtype=complex)
             for c4Sector in np.arange(0,4):
-                HOneBodySoftcoreC4 = BuildHOneBodySoftCoreC4Symmetry(softcoreC4Reps, softcoreBasis, L, links, J, FluxDensity, trapConf, 2, c4Sector)
+                HOneBodySoftcoreC4 = BuildHOneBodySoftCoreC4SymmetryOptimized(softcoreC4Reps, softcoreBasis, L, links, J, FluxDensity, trapConf, 2, c4Sector)
                 HOneBodySoftcoreC4 = HOneBodySoftcoreC4.tocsr()
                 H = HOneBodySoftcoreC4
                 
                 if (U != 0):
-                    HTwoBodyOnsiteC4 = BuildHTwoBodyOnsiteC4(softcoreC4Reps, softcoreBasis, L, U)
+                    HTwoBodyOnsiteC4 = BuildHTwoBodyOnsiteC4Optimized(softcoreC4Reps, softcoreBasis, L, U)
                     HTwoBodyOnsiteC4 = HTwoBodyOnsiteC4.tocsr()
                     H = H + HTwoBodyOnsiteC4
                     
                 if (U3 != 0):
-                    HThreeBodyOnsiteC4 = BuildHThreeBodyOnsiteC4(softcoreC4Reps, softcoreBasis, L, U3)
+                    HThreeBodyOnsiteC4 = BuildHThreeBodyOnsiteC4Optimized(softcoreC4Reps, softcoreBasis, L, U3)
                     HThreeBodyOnsiteC4 = HThreeBodyOnsiteC4.tocsr()
                     H = H + HThreeBodyOnsiteC4
 
