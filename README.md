@@ -109,8 +109,5 @@ In this paper I used the code to benchmark an experimental protocol to detect to
 ## Acknowledgements
 Many features of this project were inspired by Cecile Repellin (LPMMC Grenoble, CNRS).
 
-Many thanks to Nathan Goldman (Université libre de Bruxelles) for fruitful discussions.
-
-
 ## Contact
 Francesco Binanti (francesco.binanti@lpmmc.cnrs.fr) - feel free to contact me!
