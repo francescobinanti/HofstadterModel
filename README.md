@@ -6,6 +6,7 @@
 * [Features](#features)
 * [Usage](#usage)
 * [Room for Improvement](#room-for-improvement)
+* [Publications](#publications)
 * [Acknowledgements](#acknowledgements)
 * [Contact](#contact)
 <!-- * [License](#license) -->
@@ -100,6 +101,9 @@ Room for improvement/new features:
 To be added soon:
 - Time-dependent protocol to drive the system in the ground state with the LG perturbation and perform edge state spectroscopy
 
+## Publications
+[F. Binanti, N. Goldman, C. Repellin, ArXiv:2306.01624](https://arxiv.org/abs/2306.01624)
+In this paper I used the code to benchmark an experimental protocol to detect topological edge states.
 
 ## Acknowledgements
 Many features of this project were inspired by Cecile Repellin (LPMMC Grenoble, CNRS).
