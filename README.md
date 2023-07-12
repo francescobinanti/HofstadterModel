@@ -16,7 +16,7 @@
 This project is related to my research activity as a PhD student in the LPMMC laboratory, CNRS (Grenoble), under the supervision of C. Repellin.
 
 It provides an exact diagonalization of the Hofstadter model for interacting bosons on a square lattice:
-$$H = -J\sum_{m,n} \bigg ( b^\dagger_{m+1,n} b_{m,n}e^{i2\pi\alpha n} + b^\dagger_{m,n+1} b_{m,n} + \text{h.c.} \bigg ) + \frac{U}{2}\sum_{m,n} b^\dagger_{m,n} b_{m,n} \left( b^\dagger_{m,n} b_{m,n} - 1 \right) + \sum_{m,n} V(m,n) b^\dagger_{m,n} b_{m,n}$$
+$$H = -J\sum_{m,n} \bigg ( b^\dagger_{m+1,n} b_{m,n}e^{i2\pi\alpha n} + b^\dagger_{m,n+1} b_{m,n} + \text{h.c.} \bigg ) + \frac{U}{2}\sum_{m,n} b^\dagger_{m,n} b_{m,n} \left( b^\dagger_{m,n} b_{m,n} - 1 \right) + \frac{U_3}{6}\sum_{m,n} b^\dagger_{m,n} b_{m,n} \left( b^\dagger_{m,n} b_{m,n} - 1 \right)\left( b^\dagger_{m,n} b_{m,n} - 2 \right) + \sum_{m,n} V(m,n) b^\dagger_{m,n} b_{m,n}$$
 It also gives a practical way to perform edge state spectroscopy via light-matter interaction, by mean of a
 Laguerre-Gauss beam (periodic perturbation of the Hamiltonian above). The spatial modes of the LG laser are:
 $$f_{n,l}(r,\theta) = L_n^l(r)\big( \frac{r}{r_0} \big)^l e^{\frac{r^2}{2r_0^2}} e^{i\theta l}$$
