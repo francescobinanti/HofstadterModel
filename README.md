@@ -13,7 +13,7 @@
 
 
 ## General Information
-This project is related to my research activity as a PhD student in the LPMMC laboratory, CNRS (Grenoble).
+This project is related to my research activity as a PhD student in the LPMMC laboratory, CNRS (Grenoble), under the supervision of C. Repellin.
 
 It provides an exact diagonalization of the Hofstadter model for interacting bosons on a square lattice:
 $$H = -J\sum_{m,n} \bigg ( b^\dagger_{m+1,n} b_{m,n}e^{i2\pi\alpha n} + b^\dagger_{m,n+1} b_{m,n} + \text{h.c.} \bigg ) + \frac{U}{2}\sum_{m,n} b^\dagger_{m,n} b_{m,n} \left( b^\dagger_{m,n} b_{m,n} - 1 \right) + \sum_{m,n} V(m,n) b^\dagger_{m,n} b_{m,n}$$
