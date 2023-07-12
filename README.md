@@ -103,6 +103,7 @@ To be added soon:
 
 ## Publications
 [F. Binanti, N. Goldman, C. Repellin, ArXiv:2306.01624](https://arxiv.org/abs/2306.01624)
+
 In this paper I used the code to benchmark an experimental protocol to detect topological edge states.
 
 ## Acknowledgements
