@@ -1488,6 +1488,7 @@ if __name__ == "__main__":
     parser.add_argument('-U', type=float, help='two-body onsite interaction (only in softcore mode)')
     parser.add_argument('-U3', type=float, help='three-body onsite interaction (only in softcore mode)')
     parser.add_argument('--conf', type=float, help='harmonic trap confinement strength (v0) as v0 * r^2')
+    parser.add_argument('--gamma', type=float, default=2, help='trap steepness (g) as v0 * (r)^g (default=2)')
     parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=p/q')
     parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
     parser.add_argument('--savestates', type=int, nargs='?', const=1, default=0, help='save eigenvectors')
@@ -1503,6 +1504,8 @@ if __name__ == "__main__":
     if args.alpha is not None: FluxDensity = args.alpha
     if args.conf is not None: trapConf = args.conf
     if args.nbreigenstates is not None: nbrEigenstate = args.nbreigenstates
+    
+    gamma = args.gamma
     
     if args.hardcore == 0:
         hardcore = False
@@ -1553,13 +1556,13 @@ if __name__ == "__main__":
             #linksVer = GenLatticeNNLinks(L)[0]
             #linksHor = GenLatticeNNLinks(L)[1]
 
-            HOneBody = BuildHOneBodyOptimized(basisVectors, intBasisVectors, links, J, FluxDensity, trapConf)
+            HOneBody = BuildHOneBodyOptimized(basisVectors, intBasisVectors, links, J, FluxDensity, trapConf, gamma=gamma)
             # Convert it to a CSR sparse matrix
             HOneBody = HOneBody.tocsr()
             
             # Save the sparse Hamiltonian into a file
             if (saveHamiltonian == True):
-                fileName = GenFilename(hardcore, L, J, U, trapConf, 2, 0, hamiltonian=True, N=N)
+                fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N)
                 SaveMatrix(fileName, HOneBody)
 
             E, eVec = diagH(HOneBody, nbrEigenstate)
@@ -1572,13 +1575,13 @@ if __name__ == "__main__":
             
             # Save the energy spectrum
             if (saveSpectrum == True):
-                fileName = GenFilename(hardcore, L, J, U, trapConf, 2, 0, spectrum=True, alpha=FluxDensity, N=N)
+                fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, alpha=FluxDensity, N=N)
                 SaveSpectrum(fileName, E)
 
             # Save the eigenvectors
             if (saveEigenstates == True):
                 for nEigenstate in np.arange(0,nbrEigenstate):
-                    fileName = GenFilename(hardcore, L, J, U, trapConf, 2, nEigenstate, alpha=FluxDensity, N=N)
+                    fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, alpha=FluxDensity, N=N)
                     SaveVector(fileName, eVec[:,nEigenstate])
 
         ######## C4 HARDCORE ########
@@ -1597,7 +1600,7 @@ if __name__ == "__main__":
 
             for c4Sector in np.arange(0,4):
                 start = time.time()
-                HOneBodyC4 = BuildHOneBodyC4SymmetryOptimized(hardcoreC4Reps, basisVectors, L, links, J, FluxDensity, trapConf, 2, c4Sector)
+                HOneBodyC4 = BuildHOneBodyC4SymmetryOptimized(hardcoreC4Reps, basisVectors, L, links, J, FluxDensity, trapConf, gamma, c4Sector)
                 TimePrint(start)
 
                 #print("HAMILTONIAN:")
@@ -1609,7 +1612,7 @@ if __name__ == "__main__":
                 print(E)
                 
                 if (saveSpectrum == True):
-                    fileName = GenFilename(hardcore, L, J, U, trapConf, 2, 0, spectrum=True, alpha=FluxDensity, c4=True, N=N)
+                    fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, alpha=FluxDensity, c4=True, N=N)
                     SaveC4Spectrum(fileName, c4Sector, E)
 
                 
@@ -1630,7 +1633,7 @@ if __name__ == "__main__":
         
         if (c4Flag == False):
             # Build the tight-binding Hamiltonian
-            HOneBodySoftCore = BuildHOneBodyOptimizedSoftCore(softcoreBasis, basisTags, links, J, FluxDensity, trapConf)
+            HOneBodySoftCore = BuildHOneBodyOptimizedSoftCore(softcoreBasis, basisTags, links, J, FluxDensity, trapConf, gamma=gamma)
             HOneBodySoftCore = HOneBodySoftCore.tocsr()
             H = HOneBodySoftCore
             
@@ -1655,12 +1658,12 @@ if __name__ == "__main__":
             print(E)
             
             if (saveSpectrum == True):
-                fileName = GenFilename(hardcore, L, J, U, trapConf, 2, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
+                fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
                 SaveSpectrum(fileName, E)
             
             if (saveEigenstates == True):
                 for nEigenstate in np.arange(0,nbrEigenstate):
-                    fileName = GenFilename(hardcore, L, J, U, trapConf, 2, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
+                    fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
                     SaveVector(fileName, eVec[:,nEigenstate])
                 
         ######## C4 SOFTCORE ########
@@ -1672,7 +1675,7 @@ if __name__ == "__main__":
             
             HOneBodySoftcoreC4 = sp.sparse.lil_matrix((redDim,redDim), dtype=complex)
             for c4Sector in np.arange(0,4):
-                HOneBodySoftcoreC4 = BuildHOneBodySoftCoreC4SymmetryOptimized(softcoreC4Reps, softcoreBasis, L, links, J, FluxDensity, trapConf, 2, c4Sector)
+                HOneBodySoftcoreC4 = BuildHOneBodySoftCoreC4SymmetryOptimized(softcoreC4Reps, softcoreBasis, L, links, J, FluxDensity, trapConf, gamma, c4Sector)
                 HOneBodySoftcoreC4 = HOneBodySoftcoreC4.tocsr()
                 H = HOneBodySoftcoreC4
                 
@@ -1693,5 +1696,5 @@ if __name__ == "__main__":
                 print(E)
                 
                 if (saveSpectrum == True):
-                    fileName = GenFilename(hardcore, L, J, U, trapConf, 2, 0, spectrum=True, alpha=FluxDensity, c4=True, U3=U3, N=N)
+                    fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, alpha=FluxDensity, c4=True, U3=U3, N=N)
                     SaveC4Spectrum(fileName, c4Sector, E)

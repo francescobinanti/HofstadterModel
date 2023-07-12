@@ -52,6 +52,7 @@ parser.add_argument('-J', type=float, help='tunneling energy')
 parser.add_argument('-U', type=float, help='two-body onsite interaction (only in softcore mode)')
 parser.add_argument('-U3', type=float, help='three-body onsite interaction (only in softcore mode)')
 parser.add_argument('--conf', type=float, help='harmonic trap confinement strength (v0) as v0 * r^2')
+parser.add_argument('--gamma', type=float, default=2, help='trap steepness (g) as v0 * (r)^g (default=2)')
 parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=p/q')
 parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
 parser.add_argument('--neigenstate', type=int, help='index of the eigenstate for which the local density has to be calculated (e.g. 0 is the groundstate)')
@@ -65,6 +66,8 @@ if args.U3 is not None: U3 = args.U3
 if args.alpha is not None: FluxDensity = args.alpha
 if args.conf is not None: trapConf = args.conf
 if args.neigenstate is not None: nEigenstate = args.neigenstate
+
+gamma = args.gamma
 
 if args.hardcore == 0:
     hardcore = False
@@ -102,13 +105,13 @@ statesWithNonZeroSites = np.nonzero(basisVectors)
 
 # Load the eigenvectors
 print('Loading the eigenvector n={nEigenstate}...')
-fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, 2, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
+fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
 eigVec = HHModule.LoadVector(fileName)
 
 density = np.zeros((Ns))
 for i in np.arange(0,Ns):
     density[i] = CalcLocalDensity(i, eigVec, basisVectors)
     
-fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, 2, nEigenstate, U3=U3, alpha=FluxDensity, localDensity=True, N=N)
+fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, localDensity=True, N=N)
 SaveLocalDensity(fileName, density, L)
 

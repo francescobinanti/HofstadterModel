@@ -202,6 +202,7 @@ parser.add_argument('-U3', type=float, help='three-body onsite interaction (only
 parser.add_argument('-r0', type=float, help='Laguerre-Gauss radius parameter (for a pure gaussian beam it is the gaussian dispersion)')
 parser.add_argument('-n', type=int, default=0, help='Radial order of the Laguerre polynomials used in the spatial mode of the LG beam')
 parser.add_argument('--conf', type=float, help='harmonic trap confinement strength (v0) as v0 * r^2')
+parser.add_argument('--gamma', type=float, default=2, help='trap steepness (g) as v0 * (r)^g (default=2)')
 parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=p/q')
 parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
 parser.add_argument('--nbreigenstates', type=int, help='number of eigenstates to be considered in the matrix elements')
@@ -216,6 +217,8 @@ if args.r0 is not None: r0 = args.r0
 if args.alpha is not None: FluxDensity = args.alpha
 if args.conf is not None: trapConf = args.conf
 if args.nbreigenstates is not None: nbrEigenstate = args.nbreigenstates
+
+gamma = args.gamma
 
 if args.hardcore == 0:
     hardcore = False
@@ -264,11 +267,11 @@ statesWithNonZeroSites = np.nonzero(basisVectors)
 print('Loading the eigenvectors...')
 eigVec = np.zeros((Dim,nbrEigenstate), dtype=complex)
 for d in np.arange(0,nbrEigenstate):
-    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, 2, d, U3=U3, alpha=FluxDensity, N=N)
+    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, d, U3=U3, alpha=FluxDensity, N=N)
     eigVec[:,d] = HHModule.LoadVector(fileName)
 
 print('Loading the energy spectrum...')
-fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, 2, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
+fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
 ESpectrum = LoadSpectrum(fileName)
 
 print('Running the LG excitations...')
@@ -276,13 +279,13 @@ for angMom in np.arange(-1,-10,-1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom, nLG)
     matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
-    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, 2, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
+    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
     SaveAbsorptionSpectrum(fileName + f'_r0_{r0}_neg', ESpectrum-ESpectrum[0], angMom, matElements)
     
 for angMom in np.arange(1,10,1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom)
     matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
-    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, 2, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
+    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
     SaveAbsorptionSpectrum(fileName + f'_r0_{r0}_pos', ESpectrum-ESpectrum[0], angMom, matElements)
 
