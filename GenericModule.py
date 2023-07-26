@@ -17,7 +17,13 @@ def TimePrint(start):
     print(f'min={dtMin}')
     print('------------------------------')
     
-def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0):
+def FindCenter(L):
+    """
+    Return the center coordinate of a square lattice sized LxL
+    """
+    return (L/2. - 0.5)
+    
+def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0):
     """
     Returns the filename string the saved eigenstates will have
     """
@@ -50,6 +56,7 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
         tmpString = f'c_{trapConf}_g_{gamma}_'
         fileName = fileName + tmpString
         
+    # This parameters usually ends the filename
     if (hamiltonian == False) and (spectrum == False) and (absSpectrum == False):
         tmpString = f'n_{nEigenstate}'
         fileName = fileName + tmpString
@@ -71,6 +78,10 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
         
     if (localDensity == True):
         tmpString = f'density'
+        fileName = fileName + tmpString
+        
+    if (corrFunction != 0):
+        tmpString = f'_corrFunc_{corrFunction}'
         fileName = fileName + tmpString
         
     return fileName
@@ -100,6 +111,15 @@ def SaveVector(fileName, eigenstate):
     Routine to save eigenstates in .npy format (binary files)
     """
     np.save(fileName, eigenstate)
+    
+def SaveTwoColFile(fileName, x, y):
+    """
+    Generic routine to save data in the {x--y} format
+    """
+    fileName = fileName + '.dat'
+    
+    with open(fileName, "ab") as fileDesc:
+        np.savetxt(fileDesc, np.array([x,y]).reshape(1,2), newline='\n')
     
 def LoadVector(fileName):
     """
@@ -140,3 +160,11 @@ def LoadFileThree(fileName):
     fileName = fileName + '.dat'
     data = np.loadtxt(fileName)
     return data[:,0], data[:,1], data[:,2]
+    
+def LoadFileTwo(fileName):
+    """
+    Load data from file containing two columns of data delimited by spaces
+    """
+    fileName = fileName + '.dat'
+    data = np.loadtxt(fileName)
+    return data[:,0], data[:,1]
