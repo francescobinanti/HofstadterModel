@@ -112,6 +112,12 @@ def SaveVector(fileName, eigenstate):
     """
     np.save(fileName, eigenstate)
     
+def SaveMatrix(fileName, matrix):
+    """
+    Save a sparse matrix into a file
+    """
+    sp.sparse.save_npz(fileName,matrix)
+    
 def SaveTwoColFile(fileName, x, y):
     """
     Generic routine to save data in the {x--y} format
@@ -129,6 +135,12 @@ def LoadVector(fileName):
     vector = np.load(fileName)
     
     return vector
+    
+def LoadMatrix(fileName):
+    """
+    Load a sparse matrix from a file .npz
+    """
+    return sp.sparse.load_npz(fileName + '.npz')
     
 def LoadSpectrum(fileName):
     """

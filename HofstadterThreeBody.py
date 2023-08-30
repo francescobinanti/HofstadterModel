@@ -8,6 +8,7 @@ import argparse
 import time
 import bisect
 from functools import reduce
+import GenericModule as gm
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -1491,7 +1492,9 @@ if __name__ == "__main__":
     parser.add_argument('--gamma', type=float, default=2, help='trap steepness (g) as v0 * (r)^g (default=2)')
     parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=p/q')
     parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
-    parser.add_argument('--savestates', type=int, nargs='?', const=1, default=0, help='save eigenvectors')
+    parser.add_argument('--savestates', type=int, nargs='?', const=1, default=0, help='save each eigenvector on a file')
+    parser.add_argument('--savehamiltonian', type=int, nargs='?', const=1, default=0, help='save the hamiltonian on a file')
+    parser.add_argument('--loadhamiltonian', type=int, nargs='?', const=1, default=0, help='load the hamiltonian from a file .npz without building it from scratch')
     parser.add_argument('--nbreigenstates', type=int, help='number of eigenstates to be saved')
     parser.add_argument('--c4symmetry', type=int, nargs='?', const=1, default=0, help='use the c4 rotation symmetry in the exact diagonalization')
     args = parser.parse_args()
@@ -1521,6 +1524,16 @@ if __name__ == "__main__":
         c4Flag = False
     elif args.c4symmetry == 1:
         c4Flag = True
+        
+    if args.savehamiltonian == 0:
+        saveHamiltonian = False
+    elif args.savehamiltonian == 1:
+        saveHamiltonian = True
+        
+    if args.loadhamiltonian == 0:
+        loadHamiltonian = False
+    elif args.loadhamiltonian == 1:
+        loadHamiltonian = True
 
 
     Ns = L*L
@@ -1551,20 +1564,26 @@ if __name__ == "__main__":
         links = GenLatticeNNLinksOptimized(L)
             
         if (c4Flag == False):
-            HOneBody = sp.sparse.lil_matrix((Dim,Dim), dtype=complex)
+        
+            if (loadHamiltonian == False):
+                HOneBody = sp.sparse.lil_matrix((Dim,Dim), dtype=complex)
 
-            #linksVer = GenLatticeNNLinks(L)[0]
-            #linksHor = GenLatticeNNLinks(L)[1]
+                #linksVer = GenLatticeNNLinks(L)[0]
+                #linksHor = GenLatticeNNLinks(L)[1]
 
-            HOneBody = BuildHOneBodyOptimized(basisVectors, intBasisVectors, links, J, FluxDensity, trapConf, gamma=gamma)
-            # Convert it to a CSR sparse matrix
-            HOneBody = HOneBody.tocsr()
+                HOneBody = BuildHOneBodyOptimized(basisVectors, intBasisVectors, links, J, FluxDensity, trapConf, gamma=gamma)
+                # Convert it to a CSR sparse matrix
+                HOneBody = HOneBody.tocsr()
+                
+                # Save the sparse Hamiltonian into a file
+                if (saveHamiltonian == True):
+                    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N)
+                    gm.SaveMatrix(fileName, HOneBody)
+                    
+            else:
+                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N)
+                HOneBody = gm.LoadMatrix(fileName)
             
-            # Save the sparse Hamiltonian into a file
-            if (saveHamiltonian == True):
-                fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N)
-                SaveMatrix(fileName, HOneBody)
-
             E, eVec = diagH(HOneBody, nbrEigenstate)
 
             print("Energy spectrum:")
@@ -1614,6 +1633,10 @@ if __name__ == "__main__":
                 if (saveSpectrum == True):
                     fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, alpha=FluxDensity, c4=True, N=N)
                     SaveC4Spectrum(fileName, c4Sector, E)
+                    
+                if (saveHamiltonian == True):
+                    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, alpha=FluxDensity, c4=True, N=N)
+                    gm.SaveMatrix(fileName, HOneBodyC4)
 
                 
     else:
@@ -1632,22 +1655,32 @@ if __name__ == "__main__":
         links = GenLatticeNNLinksOptimized(L)
         
         if (c4Flag == False):
-            # Build the tight-binding Hamiltonian
-            HOneBodySoftCore = BuildHOneBodyOptimizedSoftCore(softcoreBasis, basisTags, links, J, FluxDensity, trapConf, gamma=gamma)
-            HOneBodySoftCore = HOneBodySoftCore.tocsr()
-            H = HOneBodySoftCore
-            
-            # Add the two-body onsite interaction
-            if (U != 0):
-                HTwoBodyOnsite = BuildHTwoBodyOnsite(softcoreBasis, basisTags, L, U)
-                HTwoBodyOnsite = HTwoBodyOnsite.tocsr()
-                H = H + HTwoBodyOnsite
+        
+            if (loadHamiltonian == False):
+                # Build the tight-binding Hamiltonian
+                HOneBodySoftCore = BuildHOneBodyOptimizedSoftCore(softcoreBasis, basisTags, links, J, FluxDensity, trapConf, gamma=gamma)
+                HOneBodySoftCore = HOneBodySoftCore.tocsr()
+                H = HOneBodySoftCore
                 
-            # Add the three-body onsite interaction
-            if (U3 != 0):
-                HThreeBodyOnsite = BuildHThreeBodyOnsite(softcoreBasis, basisTags, L, U3)
-                HThreeBodyOnsite = HThreeBodyOnsite.tocsr()
-                H = H + HThreeBodyOnsite
+                # Add the two-body onsite interaction
+                if (U != 0):
+                    HTwoBodyOnsite = BuildHTwoBodyOnsite(softcoreBasis, basisTags, L, U)
+                    HTwoBodyOnsite = HTwoBodyOnsite.tocsr()
+                    H = H + HTwoBodyOnsite
+                    
+                # Add the three-body onsite interaction
+                if (U3 != 0):
+                    HThreeBodyOnsite = BuildHThreeBodyOnsite(softcoreBasis, basisTags, L, U3)
+                    HThreeBodyOnsite = HThreeBodyOnsite.tocsr()
+                    H = H + HThreeBodyOnsite
+                    
+                # Save the sparse Hamiltonian into a file
+                if (saveHamiltonian == True):
+                    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, U3=U3, alpha=FluxDensity, N=N)
+                    gm.SaveMatrix(fileName, H)
+            else:
+                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, U3=U3, alpha=FluxDensity, N=N)
+                H = gm.LoadMatrix(fileName)
 
             if (nbrEigenstate > Dim):
                 nbrEigenstate = Dim - 2
@@ -1698,3 +1731,7 @@ if __name__ == "__main__":
                 if (saveSpectrum == True):
                     fileName = GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, alpha=FluxDensity, c4=True, U3=U3, N=N)
                     SaveC4Spectrum(fileName, c4Sector, E)
+                    
+                if (saveHamiltonian == True):
+                    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, alpha=FluxDensity, c4=True, U3=U3, N=N)
+                    gm.SaveMatrix(fileName, H)
