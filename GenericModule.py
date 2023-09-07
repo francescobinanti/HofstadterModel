@@ -23,7 +23,19 @@ def FindCenter(L):
     """
     return (L/2. - 0.5)
     
-def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0):
+def Phase(ang):
+    """
+    Return a complex phase factor e^{i*ang}
+    """
+    return np.exp(complex(0.,ang))
+    
+def Radius(i, j, c):
+    """
+    Return the value of radius related to the coordinates (i,j) on the lattice
+    """
+    return np.sqrt((i-c)*(i-c) + (j-c)*(j-c))
+    
+def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0, excFrac=False, timeEvolOmega=0.0, timeEvolAngMom=0, timeEvolEps=0.0, densityEvolution=False):
     """
     Returns the filename string the saved eigenstates will have
     """
@@ -77,7 +89,27 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
             fileName = fileName + tmpString
         
     if (localDensity == True):
-        tmpString = f'density'
+        tmpString = f'_density'
+        fileName = fileName + tmpString
+        
+    if (excFrac == True):
+        tmpString = f'_exfraction'
+        fileName = fileName + tmpString
+        if (r0 != 0.0):
+            tmpString = f'_r0_{r0}'
+            fileName = fileName + tmpString
+        if (timeEvolOmega != 0.0) and (timeEvolAngMom != 0) and (timeEvolEps != 0.0):
+            tmpString = f'_eps_{timeEvolEps}_w_{timeEvolOmega}_l_{timeEvolAngMom}'
+            fileName = fileName + tmpString
+            
+    if (densityEvolution == True):
+        if (r0 != 0.0):
+            tmpString = f'_r0_{r0}'
+            fileName = fileName + tmpString
+        if (timeEvolOmega != 0.0) and (timeEvolAngMom != 0) and (timeEvolEps != 0.0):
+            tmpString = f'_eps_{timeEvolEps}_w_{timeEvolOmega}_l_{timeEvolAngMom}'
+            fileName = fileName + tmpString
+        tmpString = f'_densityevolution'
         fileName = fileName + tmpString
         
     if (corrFunction != 0):

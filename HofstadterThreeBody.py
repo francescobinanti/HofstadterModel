@@ -1577,7 +1577,7 @@ if __name__ == "__main__":
                 
                 # Save the sparse Hamiltonian into a file
                 if (saveHamiltonian == True):
-                    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N)
+                    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N, alpha=FluxDensity)
                     gm.SaveMatrix(fileName, HOneBody)
                     
             else:

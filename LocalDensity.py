@@ -8,7 +8,7 @@ import HofstadterThreeBody as HHModule
     
 def SaveLocalDensity(fileName, density, L):
     """
-    Save the absorption spectrum {energy -- angular momentum -- matrix element} on a file
+    Save the local density spectrum {x -- y -- density} on a file
     """
     fileName = fileName + '.dat'
     
