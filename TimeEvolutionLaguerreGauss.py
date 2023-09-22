@@ -101,10 +101,9 @@ def BuildTimeHamiltonian(H_0, LGTerms, binBasis, t):
             
     return H_t
     
+
 def BuildAllTimesHamiltonian(H_0, LGTerms, binBasis, intBasis, tMax, dt, hardcore=True):
-    """
-    It builds all the Hamiltonians H(t) until t=tMax
-    """
+
     timeSteps = int(tMax / dt)
     HArray = [H_0.copy() for i in np.arange(0,tMax,dt)]
     intArray = {subArray: i for i, subArray in enumerate(intBasis)}
@@ -123,6 +122,46 @@ def BuildAllTimesHamiltonian(H_0, LGTerms, binBasis, intBasis, tMax, dt, hardcor
                 HArray[ti][stateInt,stateInt] += state[idx] * LGTerms[ti,idx]
                 
     return HArray
+    
+    
+"""
+def BuildAllTimesHamiltonian(H_0, LGTerms, binBasis, intBasis, tMax, dt, hardcore=True):
+
+    timeSteps = int(tMax / dt)
+    HArray = [H_0.copy() for i in np.arange(0,tMax,dt)]
+    intArray = {subArray: i for i, subArray in enumerate(intBasis)}
+    positionMatElem = []
+    filledSites = []
+    
+    start = time.time()
+    for state in binBasis:
+        if hardcore == False:
+            stateInt = HH.PomeranovTag([state]) - 1
+            positionMatElem.append(stateInt)
+        else:
+            stateTag = HH.AssignTagToState(state,n=1)
+            stateInt = intArray[stateTag]
+            positionMatElem.append(stateInt)
+            
+        stateString = HH.BitArrayToString(state)
+        filledSites.append(list(i for i, x in enumerate(stateString) if x != '0'))
+    gm.TimePrint(start)
+        
+    
+    print('Positions:')
+    print(positionMatElem[0])
+    print('====================')
+    print('Filled sites:')
+    print(filledSites[0])
+    print('LG modes given by filled sites:')
+    #print([np.sum(binBasis[positionMatElem[n]][filledSites[n]] * LGTerms[4,filledSites[n]]) for n in np.arange(0,len(positionMatElem))])
+    
+    for n in np.arange(0,len(positionMatElem)):
+        print(np.sum(np.sum(binBasis[positionMatElem[n]][filledSites] * LGTerms[1:timeSteps,filledSites], axis=1),axis=1))
+        HArray[:][positionMatElem[n],positionMatElem[n]] = np.sum(np.sum(binBasis[positionMatElem[n]][filledSites] * LGTerms[1:timeSteps,filledSites], axis=1),axis=1)
+            
+    return HArray
+    """
     
 def TimeEvolution(H_t, state, timeStep):
     """
@@ -307,6 +346,12 @@ groundStateVec = gm.LoadVector(fileName)
 LGTerms = GenerateLaguerreGaussTerms(L, r0, angMom, eps, omega, tMax, dt, n=nLG)
 #print(f'LGTerms shape = {np.shape(LGRadial)}')
 #print(LGTerms)
+
+print('-------- Laser parameters --------')
+print(f'omega={omega}')
+print(f'angular momentum={angMom}')
+print(f'epsilon={eps}')
+print('----------------------------------')
 
 print(f'Building the H(t) for all times within t=[0,{tMax}]...')
 start = time.time()

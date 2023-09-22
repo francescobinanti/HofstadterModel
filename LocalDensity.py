@@ -5,6 +5,7 @@ import argparse
 import time
 import math
 import HofstadterThreeBody as HHModule
+import GenericModule as gm
     
 def SaveLocalDensity(fileName, density, L):
     """
@@ -105,13 +106,13 @@ statesWithNonZeroSites = np.nonzero(basisVectors)
 
 # Load the eigenvectors
 print('Loading the eigenvector n={nEigenstate}...')
-fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
-eigVec = HHModule.LoadVector(fileName)
+fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
+eigVec = gm.LoadVector(fileName)
 
 density = np.zeros((Ns))
 for i in np.arange(0,Ns):
     density[i] = CalcLocalDensity(i, eigVec, basisVectors)
     
-fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, localDensity=True, N=N)
+fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, localDensity=True, N=N)
 SaveLocalDensity(fileName, density, L)
 

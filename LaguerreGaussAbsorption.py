@@ -275,14 +275,14 @@ fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=
 ESpectrum = LoadSpectrum(fileName)
 
 print('Running the LG excitations...')
-for angMom in np.arange(-1,-10,-1):
+for angMom in np.arange(-1,-11,-1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom, nLG)
     matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
     fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
     SaveAbsorptionSpectrum(fileName + f'_r0_{r0}_neg', ESpectrum-ESpectrum[0], angMom, matElements)
     
-for angMom in np.arange(1,10,1):
+for angMom in np.arange(1,11,1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom)
     matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)

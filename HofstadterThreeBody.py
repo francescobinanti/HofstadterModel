@@ -1581,7 +1581,7 @@ if __name__ == "__main__":
                     gm.SaveMatrix(fileName, HOneBody)
                     
             else:
-                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N)
+                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, N=N, alpha=FluxDensity)
                 HOneBody = gm.LoadMatrix(fileName)
             
             E, eVec = diagH(HOneBody, nbrEigenstate)
