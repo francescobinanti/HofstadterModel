@@ -67,7 +67,7 @@ args = parser.parse_args()
 if args.N is not None: N = args.N
 if args.L is not None: L = args.L
 if args.J is not None: J = args.J
-if args.U is not None: U3 = args.U
+if args.U is not None: U = args.U
 if args.U3 is not None: U3 = args.U3
 if args.alpha is not None: FluxDensity = args.alpha
 if args.conf is not None: trapConf = args.conf
@@ -124,6 +124,7 @@ elif args.protocolresult == 1:
     protocolResults = True
 
 Ns = L*L
+c0 = gm.FindCenter(L)
 
 # Enable LaTeX rendering
 plt.rcParams['text.usetex'] = True
@@ -171,7 +172,7 @@ if args.density is not None:
     y = y.astype(int)
     densityArray = np.zeros((L,L))
     densityArray[x,y] = density
-    plt.imshow(densityArray, cmap='inferno', extent=[-0.5, L - 0.5, -0.5, L - 0.5])
+    plt.imshow(densityArray, cmap='ocean_r', extent=[-0.5, L - 0.5, -0.5, L - 0.5])
     plt.colorbar(label=r'$\left < \hat n_{xy} \right >$')
     plt.xlabel(r'$x$')
     plt.ylabel(r'$y$')
@@ -182,13 +183,13 @@ if args.density is not None:
     
     if args.densitydiagonal == 1:
         plt.figure()
-        xAxis = np.arange(0,L)
+        xAxis = [np.sqrt(2)*(i-c0) for i in np.arange(0,L)]
         diagDensity = [densityArray[i,(L-1)-i] for i in np.arange(0,L)]
-        plt.xticks(np.arange(0,L,1))
-        plt.ylabel(r'$\left < \hat n_{xy} \right >_{diag}$')
-        plt.xlabel(r'$(x,y)_{diag}$')
+        #plt.xticks([np.sqrt((i-c0)**2 + (i-c0)**2) for i in np.arange(0,L)])
+        plt.xlabel(r'$r$')
+        plt.ylabel(r'$\rho(r)$')
         plt.scatter(xAxis, diagDensity, marker='o', s=1.5, facecolors='#0066cc')
-        plt.plot(xAxis, diagDensity, color='#0066cc', linewidth=0.7)
+        plt.plot(xAxis, diagDensity, color='#0066cc', linewidth=0.7, label=r'MRM')
         
         if args.densitygscomparison == 1:
             fileNameGS = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate=0, U3=U3, alpha=FluxDensity, N=N, localDensity=True)
@@ -199,12 +200,15 @@ if args.density is not None:
             gsDensityArray[x,y] = gsDensity
             gsDiagDensity = [gsDensityArray[i,(L-1)-i] for i in np.arange(0,L)]
             plt.scatter(xAxis, gsDiagDensity, marker='o', s=1.5, facecolors='g')
-            plt.plot(xAxis, gsDiagDensity, color='g', linewidth=0.7, label='$GS$')
-            plt.scatter(xAxis, np.array(diagDensity)-np.array(gsDiagDensity), marker='o', s=1.5, facecolors='orange')
-            plt.plot(xAxis, np.array(diagDensity)-np.array(gsDiagDensity), color='orange', linewidth=0.7, label=r'$\left < \hat n_{xy} \right > - GS$')
+            plt.plot(xAxis, gsDiagDensity, color='g', linewidth=0.7, label=r'GS')
+            #plt.scatter(xAxis, np.array(diagDensity)-np.array(gsDiagDensity), marker='o', s=1.5, facecolors='orange')
+            #plt.plot(xAxis, np.array(diagDensity)-np.array(gsDiagDensity), color='orange', linewidth=0.7, label=r'$\left < \hat n_{xy} \right > - GS$')
             plt.legend()
-                
+               
+        plt.legend()
         plt.text(0.05, 0.85, f'$\l={{{angMom}}}$', transform=plt.gca().transAxes)
+        if args.sety != 0:
+            plt.ylim(top=args.sety)
         plt.savefig(fileName+f'_diagonal_l_{angMom}.pdf', format='pdf')
         plt.close()
         
@@ -287,7 +291,7 @@ if args.absorption == 1:
     if args.sety == 0:
         ax.set_ylim(min(energy) - 0.1, max(energy) + 0.1)
     else:
-        ax.set_ylim(min(energy) - 0.1, args.sety)
+        ax.set_ylim(0, args.sety)
     
     plt.xticks(np.arange(-max(l),max(l)+1, 2))
     
@@ -344,12 +348,14 @@ if densityEvolution == True:
         t, bulkDensity = gm.LoadFileTwo(fileName + '_bulk')
         
         plt.xlabel(r'$t$')
-        plt.scatter(t, edgeDensity, marker='o', s=1.5, facecolors='g')
-        plt.scatter(t, bulkDensity, marker='o', s=1.5, facecolors='orange')
-        plt.text(0.05, 0.05, f'$\omega={{{omega}}}$', transform=plt.gca().transAxes, fontsize=12)
-        plt.text(0.05, 0.1, f'$l={{{angMom}}}$', transform=plt.gca().transAxes, fontsize=12)
+        plt.xticks(np.arange(0,np.max(t),10))
+        plt.xlim(0,np.max(t))
+        plt.scatter(t, edgeDensity, marker='o', s=1.5, facecolors='#9401d3', label=r'$\Delta\rho_{edge}$')
+        plt.scatter(t, bulkDensity, marker='o', s=1.5, facecolors='#207133', label=r'$\Delta\rho_{bulk}$')
+        plt.text(0.05, 0.05, f'$\omega={{{omega}}}$', transform=plt.gca().transAxes, fontsize=25)
+        plt.text(0.05, 0.15, f'$l={{{angMom}}}$', transform=plt.gca().transAxes, fontsize=25)
         
-        plt.legend([r'$\Delta\rho_{edge}$',r'$\Delta\rho_{bulk}$'])
+        plt.legend()
         
         plotName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, densityEvolution=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega)
         plt.savefig(plotName+'.pdf')
@@ -497,7 +503,7 @@ if protocolResults == True:
     else:
         resonanceFileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, densityEvolution=True, r0=r0) + '_edge_maxdensity'
     angMomRes, wMax = gm.LoadFileTwo(resonanceFileName)
-    plt.scatter(angMomRes, wMax, marker='o', s=7.0, facecolors='r', label=r'$\omega_{res}$')
+    plt.scatter(angMomRes, wMax, marker='o', s=11.0, facecolors='r', label=r'$\omega_{res}$')
     #plt.legend(loc='center right', borderpad=0.5)
     
     plotFileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, absSpectrum=True, r0=args.r0)

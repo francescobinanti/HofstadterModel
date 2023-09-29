@@ -52,7 +52,7 @@ def GenerateLaguerreGaussTerms(L, r0, l, eps, omega, tMax, dt, n=0):
     tmpNFactor = 0
     NFactor = 0
 
-    for ti in np.arange(1,totalSteps):
+    for ti in np.arange(0,totalSteps):
         t = ti * dt
         timePhase = gm.Phase(-omega * t)
         for y in np.arange(0,L):
@@ -79,8 +79,6 @@ def GenerateLaguerreGaussTerms(L, r0, l, eps, omega, tMax, dt, n=0):
         #print(OAMPhases)
         LGCoeff[ti,:] = eps * (LGCoeff[ti,:] / NFactor) * ( (OAMPhases * timePhase) + np.conj(OAMPhases * timePhase) )
         #print(LGCoeff)
-        
-    #print(f'Max factor = {NFactor}')
             
     return LGCoeff
     
@@ -123,45 +121,26 @@ def BuildAllTimesHamiltonian(H_0, LGTerms, binBasis, intBasis, tMax, dt, hardcor
                 
     return HArray
     
-    
-"""
-def BuildAllTimesHamiltonian(H_0, LGTerms, binBasis, intBasis, tMax, dt, hardcore=True):
-
-    timeSteps = int(tMax / dt)
-    HArray = [H_0.copy() for i in np.arange(0,tMax,dt)]
+def BuildZeroTimeHamiltonian(H_0, LGTerms, binBasis, intBasis, hardcore=True):
+    """
+    Builds a Hamiltonian H = H_0 + O_l where the laser frequency omega=0 (so time-independent)
+    """
+    HPerturbed = H_0.copy()
     intArray = {subArray: i for i, subArray in enumerate(intBasis)}
-    positionMatElem = []
-    filledSites = []
     
-    start = time.time()
     for state in binBasis:
         if hardcore == False:
             stateInt = HH.PomeranovTag([state]) - 1
-            positionMatElem.append(stateInt)
         else:
             stateTag = HH.AssignTagToState(state,n=1)
             stateInt = intArray[stateTag]
-            positionMatElem.append(stateInt)
             
         stateString = HH.BitArrayToString(state)
-        filledSites.append(list(i for i, x in enumerate(stateString) if x != '0'))
-    gm.TimePrint(start)
-        
-    
-    print('Positions:')
-    print(positionMatElem[0])
-    print('====================')
-    print('Filled sites:')
-    print(filledSites[0])
-    print('LG modes given by filled sites:')
-    #print([np.sum(binBasis[positionMatElem[n]][filledSites[n]] * LGTerms[4,filledSites[n]]) for n in np.arange(0,len(positionMatElem))])
-    
-    for n in np.arange(0,len(positionMatElem)):
-        print(np.sum(np.sum(binBasis[positionMatElem[n]][filledSites] * LGTerms[1:timeSteps,filledSites], axis=1),axis=1))
-        HArray[:][positionMatElem[n],positionMatElem[n]] = np.sum(np.sum(binBasis[positionMatElem[n]][filledSites] * LGTerms[1:timeSteps,filledSites], axis=1),axis=1)
-            
-    return HArray
-    """
+        filledSites = list(i for i, x in enumerate(stateString) if x != '0')
+        for idx in filledSites:
+            HPerturbed[stateInt,stateInt] += state[idx] * LGTerms[0,idx]
+                
+    return HPerturbed
     
 def TimeEvolution(H_t, state, timeStep):
     """
@@ -273,6 +252,8 @@ parser.add_argument('--omega', type=float, default=0.0, help='energy injected by
 parser.add_argument('--epsilon', type=float, default=1.0, help='the intensity of the Laguerre-Gauss perturbation term as epsilon*O(t)')
 parser.add_argument('--tmax', type=float, default=1.0, help='time at which the time evolution has to stop (default=1.0)')
 parser.add_argument('--dt', type=float, default=0.01, help='timestep (default=0.01)')
+parser.add_argument('--savetimestates', type=float, default=0.0, help='specify the timesteps at which the time evolved wavefunction should be saved in a file')
+parser.add_argument('--excfraction', type=int, nargs='?', const=1, default=0, help='calculate the excitation fraction 1 - |<psi_0|psi_t>|ˆ2')
 # Optional
 parser.add_argument('--density', type=int, nargs='?', const=1, default=0, help='calculate the variation of the ground state local density in time (at the edge), i.e. rho(t) - rho(0)')
 parser.add_argument('--squares', type=int, default=2, help='specify which square ring of the lattice (starting with 1 for the inner center) has to be considered as the beginning of the "edge" for the calculation of the density variation (default=2, namely we consider from s=3 onwards)')
@@ -281,7 +262,7 @@ args = parser.parse_args()
 if args.N is not None: N = args.N
 if args.L is not None: L = args.L
 if args.J is not None: J = args.J
-if args.U is not None: U3 = args.U
+if args.U is not None: U = args.U
 if args.U3 is not None: U3 = args.U3
 if args.r0 is not None: r0 = args.r0
 if args.alpha is not None: FluxDensity = args.alpha
@@ -314,6 +295,11 @@ print(f'LG radial order n={nLG}')
 Ns = L*L
 c = HH.FindCenter(L)
 
+# Load the Hamiltonian at time t=0
+print('Loading the Hofstadter Hamiltonian...')
+fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, U3=U3, alpha=FluxDensity, N=N)
+H_0 = gm.LoadMatrix(fileName)
+
 print('Generating basis vectors...')
 if (hardcore == True):
     # Generate the hardcore basis
@@ -334,10 +320,6 @@ else:
 
 print(f'Hilbert space dimension={Dim}')
 
-# Load the Hamiltonian at time t=0
-fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, hamiltonian=True, U3=U3, alpha=FluxDensity, N=N)
-H_0 = gm.LoadMatrix(fileName)
-
 # Load the ground state
 print('Loading the ground state vector...')
 fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N)
@@ -353,10 +335,16 @@ print(f'angular momentum={angMom}')
 print(f'epsilon={eps}')
 print('----------------------------------')
 
-print(f'Building the H(t) for all times within t=[0,{tMax}]...')
-start = time.time()
-H = BuildAllTimesHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, tMax, dt, hardcore)
-gm.TimePrint(start)
+if omega != 0.0:
+    print(f'Building the H(t) for all times within t=[0,{tMax}]...')
+    start = time.time()
+    H = BuildAllTimesHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, tMax, dt, hardcore)
+    gm.TimePrint(start)
+else:
+    print(f'Building the perturbed Hamiltonian H = H_0 + O_l...')
+    start = time.time()
+    H = BuildZeroTimeHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, hardcore)
+    gm.TimePrint(start)
 
 """
 # CHECK: diagonalize H(t) at different times and see if the GS is periodic with omega of the laser
@@ -385,9 +373,18 @@ if densityFlag == True:
         groundStateBulkDensity += CalcDensityTime(site, groundStateVec, basisVectors)
 
 for ti in np.arange(1, int(tMax / dt)):
-    evolvedState = TimeEvolution(H[ti].tocsc(), evolvedState, dt)
-    excFraction = CalcExcitationFraction(evolvedState, groundStateVec, ti*dt)
-    gm.SaveTwoColFile(fileName, ti*dt, excFraction)
+    if omega != 0.0:
+        evolvedState = TimeEvolution(H[ti].tocsc(), evolvedState, dt)
+    else:
+        evolvedState = TimeEvolution(H.tocsc(), evolvedState, dt)
+        
+    if args.excfraction == 1:
+        excFraction = CalcExcitationFraction(evolvedState, groundStateVec, ti*dt)
+        gm.SaveTwoColFile(fileName, ti*dt, excFraction)
+    
+    if args.savetimestates != 0.0:
+        if (ti*dt)%(args.savetimestates) == 0:
+            gm.SaveVector(fileName + f'_evolved_t_{ti*dt}', evolvedState)
     
     if densityFlag == True:
         for site in edgeSiteSquares:
@@ -404,4 +401,5 @@ for ti in np.arange(1, int(tMax / dt)):
         
         evolvedEdgeDensity = 0
         evolvedBulkDensity = 0
+    
     
