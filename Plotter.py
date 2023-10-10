@@ -32,9 +32,14 @@ parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=
 parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
 # Plotting parameters
 parser.add_argument('--spectrumflux', type=int, nargs='?', const=1, default=0, help='plot the energy spectrum E vs the magnetic flux density alpha (need to speficy --alphainit and --alphafinal)')
+parser.add_argument('--spectrumepsilon', type=int, nargs='?', const=1, default=0, help='plot the energy spectrum E vs the laser strength epsilon (need to speficy --epsiloninit and --epsilonfinal and the laser parameters)')
 parser.add_argument('--alphainit', type=float, default=0.01, help='initial value of the flux alpha for the energy plot E vs alpha')
 parser.add_argument('--alphafinal', type=float, default=0.1, help='final value of the flux alpha for the energy plot E vs alpha')
 parser.add_argument('--alphastep', type=float, default=0.01, help='step for the increase of alpha in the E vs alpha plot (default=0.01)')
+parser.add_argument('--epsiloninit', type=float, default=0.1, help='initial value of epsilon for the energy plot E vs epsilon')
+parser.add_argument('--epsilonfinal', type=float, default=1.0, help='final value of epsilon for the energy plot E vs epsilon')
+parser.add_argument('--epsilonstep', type=float, default=0.1, help='step for the increase of epsilon in the E vs epsilon plot (default=0.1)')
+
 parser.add_argument('--c4spectrum', type=int, nargs='?', const=1, default=0, help='plot the energy spectrum E vs C4 quantum numbers')
 parser.add_argument('--density', type=int, help='plot the local density of |psi_n> on the square lattice (provide n as parameter)')
 parser.add_argument('--densitydiagonal', type=int, nargs='?', const=1, default=0, help='add to the --density flag in order to plot the density along the diagonal cut of the lattice (passing through the center)')
@@ -87,6 +92,11 @@ if args.spectrumflux == 0:
 elif args.spectrumflux == 1:
     spectrumFlux = True
     
+if args.spectrumepsilon == 0:
+    spectrumEpsilon = False
+elif args.spectrumepsilon == 1:
+    spectrumEpsilon = True
+    
 if args.c4spectrum == 0:
     c4Spectrum = False
 elif args.c4spectrum == 1:
@@ -95,6 +105,10 @@ elif args.c4spectrum == 1:
 alphaInit = args.alphainit
 alphaFinal = args.alphafinal
 alphaStep = args.alphastep
+
+epsilonInit = args.epsiloninit
+epsilonFinal = args.epsilonfinal
+epsilonStep = args.epsilonstep
 
 corrFuncOrder = args.corrfuncalpha
 
@@ -143,6 +157,16 @@ if (spectrumFlux == True):
         plt.scatter(np.full(len(energies), a), energies-energies[0], marker='o', s=1.5, facecolors='#0066cc')
     plt.savefig(fileName+'_plot.pdf')
     
+if (spectrumEpsilon == True):
+    for epsilon in np.arange(epsilonInit, epsilonFinal, epsilonStep):
+        fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, spectrum=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=round(epsilon,2), timeEvolOmega=omega)
+        energies = gm.LoadSpectrum(fileName)
+        
+        plt.xlabel(r'$\epsilon$')
+        plt.ylabel(r'$E-E_0$')
+        plt.scatter(np.full(len(energies), epsilon), energies-energies[0], marker='o', s=1.5, facecolors='#0066cc')
+    plt.savefig(fileName+'_plot.pdf')
+
 if (c4Spectrum == True):
     fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, spectrum=True, c4=True)
     data = gm.LoadC4Spectrum(fileName)

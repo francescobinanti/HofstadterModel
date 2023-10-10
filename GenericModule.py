@@ -18,6 +18,16 @@ def TimePrint(start):
     print(f'min={dtMin}')
     print('------------------------------')
     
+def HilbertDim(N,Ns,hardcore):
+    """
+    Calculate the Hilbert space dimension for N particles in Ns sites
+    for hardcore or softcore bosons
+    """
+    if hardcore == False:
+        return sp.special.comb(N+Ns-1,N)
+    else:
+        return sp.special.comb(Ns,N)
+    
 def FindCenter(L):
     """
     Return the center coordinate of a square lattice sized LxL
@@ -36,58 +46,69 @@ def Radius(i, j, c):
     """
     return np.sqrt((i-c)*(i-c) + (j-c)*(j-c))
     
-def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0, excFrac=False, timeEvolOmega=0.0, timeEvolAngMom=0, timeEvolEps=0.0, densityEvolution=False):
+def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0, excFrac=False, timeEvolOmega=0.0, timeEvolAngMom=0, timeEvolEps=0.0, densityEvolution=False, evolvedState=False, timeEvolState=0.0):
     """
     Returns the filename string the saved eigenstates will have
     """
     tmpString = ""
-    fileName = f'bosons_'
+    fileName = f'bosons'
     
     if (hardcore == True):
-        tmpString = f'hardcore_'
+        tmpString = f'_hardcore'
         fileName = fileName + tmpString
     else:
-        tmpString = f'softcore_'
+        tmpString = f'_softcore'
         fileName = fileName + tmpString
         
     if (c4 == True):
-        tmpString = f'c4_'
+        tmpString = f'_c4'
         fileName = fileName + tmpString
         
-    tmpString = f'N_{N}_x_{L}_y_{L}_J_{J}_alpha_{alpha}_'
+    tmpString = f'_N_{N}_x_{L}_y_{L}_J_{J}_alpha_{alpha}'
     fileName = fileName + tmpString
     
     if ((hardcore == False) and (U != 0.)):
-        tmpString = f'U_{U}_'
+        tmpString = f'_U_{U}'
         fileName = fileName + tmpString
     
     if ((hardcore == False) and (U3 != 0.)):
-        tmpString = f'U3_{U3}_'
+        tmpString = f'_U3_{U3}'
         fileName = fileName + tmpString
     
     if (trapConf != 0):
-        tmpString = f'c_{trapConf}_g_{gamma}_'
+        tmpString = f'_c_{trapConf}_g_{gamma}'
         fileName = fileName + tmpString
         
-    # This parameters usually ends the filename
     if (hamiltonian == False) and (spectrum == False) and (absSpectrum == False):
-        tmpString = f'n_{nEigenstate}'
+        tmpString = f'_n_{nEigenstate}'
         fileName = fileName + tmpString
         
     if (hamiltonian == True):
-        tmpString = f'hamiltonian'
+        tmpString = f'_hamiltonian'
         fileName = fileName + tmpString
         
     if (spectrum == True):
-        tmpString = f'spectrum'
+        tmpString = f'_spectrum'
+        fileName = fileName + tmpString
+        
+    # TIME EVOLUTION / LASER PARAMETERS
+    if (r0 != 0.0):
+        tmpString = f'_r0_{r0}'
+        fileName = fileName + tmpString
+        
+    if (timeEvolEps != 0.0):
+        tmpString = f'_eps_{timeEvolEps}'
+        fileName = fileName + tmpString
+    if (timeEvolOmega != 0):
+        tmpString = f'_w_{timeEvolOmega}'
+        fileName = fileName + tmpString
+    if (timeEvolAngMom != 0.0):
+        tmpString = f'_l_{timeEvolAngMom}'
         fileName = fileName + tmpString
         
     if (absSpectrum == True):
-        tmpString = f'absorption'
+        tmpString = f'_absorption'
         fileName = fileName + tmpString
-        if (r0 != 0.0):
-            tmpString = f'_r0_{r0}'
-            fileName = fileName + tmpString
         
     if (localDensity == True):
         tmpString = f'_density'
@@ -96,20 +117,8 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
     if (excFrac == True):
         tmpString = f'_exfraction'
         fileName = fileName + tmpString
-        if (r0 != 0.0):
-            tmpString = f'_r0_{r0}'
-            fileName = fileName + tmpString
-        if (timeEvolOmega != 0.0) and (timeEvolAngMom != 0) and (timeEvolEps != 0.0):
-            tmpString = f'_eps_{timeEvolEps}_w_{timeEvolOmega}_l_{timeEvolAngMom}'
-            fileName = fileName + tmpString
             
     if (densityEvolution == True):
-        if (r0 != 0.0):
-            tmpString = f'_r0_{r0}'
-            fileName = fileName + tmpString
-        if (timeEvolOmega != 0.0) and (timeEvolAngMom != 0) and (timeEvolEps != 0.0):
-            tmpString = f'_eps_{timeEvolEps}_w_{timeEvolOmega}_l_{timeEvolAngMom}'
-            fileName = fileName + tmpString
         tmpString = f'_densityevolution'
         fileName = fileName + tmpString
         
@@ -117,11 +126,20 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
         tmpString = f'_corrFunc_{corrFunction}'
         fileName = fileName + tmpString
         
+    if (evolvedState == True):
+        tmpString = f'_evolved'
+        fileName = fileName + tmpString
+        
+    if timeEvolState != 0.0:
+        tmpString = f'_t_{timeEvolState}'
+        fileName = fileName + tmpString
+        
     return fileName
     
 def SaveSpectrum(fileName, energies):
     fileName = fileName + '.dat'
     fileDesc = open(fileName,"a")
+    print(f'Saving the spectrum in: {fileName}')
     
     for E in energies:
         fileDesc.write(f'{E}\n')
@@ -138,11 +156,20 @@ def SaveC4Spectrum(fileName, c4Sector, energies):
     print(f'Saving the C4 energy spectrum for L={c4Sector} on file "{fileName}"...')
     with open(fileName,"ab") as fileDesc:
         np.savetxt(fileDesc, dataStack)
+        
+def SaveArraysTwoColFile(fileName, xArray, yArray):
+    fileName = fileName + '.dat'
+    
+    dataStack = np.column_stack((xArray, yArray))
+    
+    with open(fileName,"w") as fileDesc:
+        np.savetxt(fileDesc, dataStack)
 
 def SaveVector(fileName, eigenstate):
     """
     Routine to save eigenstates in .npy format (binary files)
     """
+    print(f'Saving the eigenstate in: {fileName}')
     np.save(fileName, eigenstate)
     
 def SaveMatrix(fileName, matrix):

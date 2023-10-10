@@ -70,19 +70,36 @@ parser.add_argument('--corrvsflux', type=int, nargs='?', const=1, default=0, hel
 parser.add_argument('--alphainit', type=float, default=0.1, help='starting flux to calculate the correlation function with (default=0.1)')
 parser.add_argument('--alphafinal', type=float, default=0.2, help='final flux to calculate the correlation function with (default=0.2)')
 parser.add_argument('--alphastep', type=float, default=0.01, help='step to increase alpha (default=0.01)')
+# Time dependent correlation function
+parser.add_argument('--timedep', type=int, nargs='?', const=1, default=0, help='flag to use the time evolved eigenstate --neigenstate to calculate C(t), e.g. C_2(t)=<psi_t|n(n-1)|psi_t> (to be specified --tmax and --dt)')
+parser.add_argument('--tmax', type=float, default=5.0, help='maximum time of the evolved state psi_t to calculate C(t)')
+parser.add_argument('--dt', type=float, default=0.01, help='timestep for the evolved states')
+# Laser parameters
+parser.add_argument('-r0', type=float, help='laser r0 parameter')
+parser.add_argument('--angmom', type=int, default=0, help='angular momentum (l) injected by the LG beam (default=0)')
+parser.add_argument('--omega', type=float, default=0.0, help='energy injected by the LG beam (default=0)')
+parser.add_argument('--epsilon', type=float, default=1.0, help='the intensity of the Laguerre-Gauss perturbation term as epsilon*O(t)')
 args = parser.parse_args()
 
 if args.N is not None: N = args.N
 if args.L is not None: L = args.L
 if args.J is not None: J = args.J
-if args.U is not None: U3 = args.U
+if args.U is not None: U = args.U
 if args.U3 is not None: U3 = args.U3
 if args.alpha is not None: FluxDensity = args.alpha
+if args.r0 is not None: r0 = args.r0
 if args.conf is not None: trapConf = args.conf
 if args.neigenstate is not None: nEigenstate = args.neigenstate
 
 gamma = args.gamma
 p = args.p
+
+angMom = args.angmom
+omega = args.omega
+eps = args.epsilon
+
+tMax = args.tmax
+dt = args.dt
 
 if p>3:
     print('Only p=2, p=3 spatial correlation functions are implemented.')
@@ -137,7 +154,7 @@ if corrVsFlux == False:
     fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, corrFunction=p, N=N)
     SaveLocalDensity(fileName, cFunction, L)
     
-else:
+if corrVsFlux == True:
     for a in np.arange(alphaInit,alphaFinal,alphaStep):
         print('Loading the eigenvector n={nEigenstate} for flux alpha={a}...')
         fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=round(a,2), N=N)
@@ -151,5 +168,25 @@ else:
         fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=alphaInit, corrFunction=p, N=N)
         gm.SaveTwoColFile(fileName, round(a,2), cFunction)
         print(f'Saving {p}-points correlation function for alpha={round(a,2)} on file {fileName}...')
-    
+        
+if args.timedep == 1:
+    nbrOfSteps = int(tMax/dt)
+    time = []
+    corrFunc = []
+    for ti in np.arange(1,nbrOfSteps):
+        print(f'Loading the eigenvector n={nEigenstate} evolved at time t={ti*dt}...')
+        fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N, evolvedState=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega, timeEvolState=round(ti*dt,2))
+        eigVec = gm.LoadVector(fileName)
+        
+        cFunction = 0.
+        for i in np.arange(0,Ns):
+            cFunction = cFunction + SpatialCorrelation(i, eigVec, basisVectors, p)
 
+        cFunction = cFunction / N
+        
+        time.append(ti*dt)
+        corrFunc.append(cFunction)
+        
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N, r0=r0, timeEvolAngMom=angMom, evolvedState=True, timeEvolEps=eps, timeEvolOmega=omega, timeEvolState=round(ti*dt,2), corrFunction=p)
+    gm.SaveArraysTwoColFile(fileName, np.array(time), np.array(corrFunc))
+    print(f'Saving {p}-points correlation function for time t={ti*dt} on file {fileName}...')

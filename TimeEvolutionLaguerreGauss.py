@@ -41,10 +41,10 @@ def GenerateLaguerreGaussTerms(L, r0, l, eps, omega, tMax, dt, n=0):
     """
     It creates the Laguerre-Gauss terms for the Hamiltonian H(t) at time t
     """
-    print(f'Generating LG modes at all times')
     c = HH.FindCenter(L)
     totalSteps = int(tMax / dt)
     # These are the the matrix elements O(t) for all times on the lattice LGCoeff[time][space]
+    LGCoeffZeroTime = np.zeros((L*L), dtype=complex)
     LGCoeff = np.zeros((totalSteps, L*L), dtype=complex)
     OAMPhases = np.zeros((L*L), dtype=complex)
     LGPreFactor = np.sqrt(2*math.factorial(n)/( np.pi * np.math.factorial(n + np.abs(l)) ))
@@ -52,9 +52,86 @@ def GenerateLaguerreGaussTerms(L, r0, l, eps, omega, tMax, dt, n=0):
     tmpNFactor = 0
     NFactor = 0
 
+    if tMax != 0.0:
+        print(f'Generating LG modes at all times...')
+        for ti in np.arange(0,totalSteps):
+            t = ti * dt
+            timePhase = gm.Phase(-omega * t)
+            for y in np.arange(0,L):
+                for x in np.arange(0,L):
+                    siteIndex = x + L*y
+                    radius = gm.Radius(x,y,c)
+                    ang = np.arctan2(y-c,x-c)
+                    OAMPhases[siteIndex] = gm.Phase(ang * l)
+                    #print(f'Phase(i={siteIndex}) = {OAMPhases[siteIndex]}')
+                    
+                    if (n == 0):
+                        laguerrePolynomial = 1.
+                    else:
+                        laguerrePolynomial = LaguerrePolynomial(n, l, radius)
+                        
+                    LGCoeff[ti,siteIndex] = LGPreFactor * ( (radius/r0)**np.abs(l) ) * np.exp( -(radius*radius) / (2*r0*r0) ) * laguerrePolynomial
+                    #print(f'f(i={siteIndex})={(eps * LGCoeff[ti,siteIndex] * OAMPhases[siteIndex])}')
+                    tmpNFactor = LGCoeff[ti,siteIndex]
+                    #print(tmpNFactor)
+                    if (tmpNFactor > NFactor):
+                        NFactor = tmpNFactor
+                        
+            #print(f'NFactor={NFactor}')
+            #print(OAMPhases)
+            LGCoeff[ti,:] = eps * (LGCoeff[ti,:] / NFactor) * ( (OAMPhases * timePhase) + np.conj(OAMPhases * timePhase) )
+            #print(LGCoeff)
+            
+            return LGCoeff
+    else:
+        print(f'Generating LG modes at time t=0...')
+        for y in np.arange(0,L):
+            for x in np.arange(0,L):
+                siteIndex = x + L*y
+                radius = gm.Radius(x,y,c)
+                ang = np.arctan2(y-c,x-c)
+                OAMPhases[siteIndex] = gm.Phase(ang * l)
+                #print(f'Phase(i={siteIndex}) = {OAMPhases[siteIndex]}')
+                
+                if (n == 0):
+                    laguerrePolynomial = 1.
+                else:
+                    laguerrePolynomial = LaguerrePolynomial(n, l, radius)
+                    
+                LGCoeffZeroTime[siteIndex] = LGPreFactor * ( (radius/r0)**np.abs(l) ) * np.exp( -(radius*radius) / (2*r0*r0) ) * laguerrePolynomial
+                #print(f'f(i={siteIndex})={(eps * LGCoeff[ti,siteIndex] * OAMPhases[siteIndex])}')
+                tmpNFactor = LGCoeffZeroTime[siteIndex]
+                #print(tmpNFactor)
+                if (tmpNFactor > NFactor):
+                    NFactor = tmpNFactor
+                    
+        #print(f'NFactor={NFactor}')
+        #print(OAMPhases)
+        LGCoeffZeroTime[:] = eps * (LGCoeffZeroTime[:] / NFactor) * ( (OAMPhases) + np.conj(OAMPhases) )
+        
+        return LGCoeffZeroTime
+        
+def GenerateLaguerreGaussTermsIncreaseEpsilon(L, r0, l, epsilonInit, epsilonStep, omega, tMax, dt, n=0):
+    """
+    Same as GenerateLaguerreGaussTerms() but increasing epsilon at each timestep
+    """
+    c = HH.FindCenter(L)
+    totalSteps = int(tMax / dt)
+    # These are the the matrix elements O(t) for all times on the lattice LGCoeff[time][space]
+    LGCoeffZeroTime = np.zeros((L*L), dtype=complex)
+    LGCoeff = np.zeros((totalSteps, L*L), dtype=complex)
+    OAMPhases = np.zeros((L*L), dtype=complex)
+    LGPreFactor = np.sqrt(2*math.factorial(n)/( np.pi * np.math.factorial(n + np.abs(l)) ))
+    #print(f'PreFactorLG={LGPreFactor}')
+    tmpNFactor = 0
+    NFactor = 0
+    eps = epsilonInit
+
+    print(f'Generating LG modes at all times increasing epsilon by {epsilonStep} at each timestep...')
     for ti in np.arange(0,totalSteps):
         t = ti * dt
         timePhase = gm.Phase(-omega * t)
+        eps = eps + epsilonStep
         for y in np.arange(0,L):
             for x in np.arange(0,L):
                 siteIndex = x + L*y
@@ -79,7 +156,7 @@ def GenerateLaguerreGaussTerms(L, r0, l, eps, omega, tMax, dt, n=0):
         #print(OAMPhases)
         LGCoeff[ti,:] = eps * (LGCoeff[ti,:] / NFactor) * ( (OAMPhases * timePhase) + np.conj(OAMPhases * timePhase) )
         #print(LGCoeff)
-            
+        
     return LGCoeff
     
 def BuildTimeHamiltonian(H_0, LGTerms, binBasis, t):
@@ -138,7 +215,7 @@ def BuildZeroTimeHamiltonian(H_0, LGTerms, binBasis, intBasis, hardcore=True):
         stateString = HH.BitArrayToString(state)
         filledSites = list(i for i, x in enumerate(stateString) if x != '0')
         for idx in filledSites:
-            HPerturbed[stateInt,stateInt] += state[idx] * LGTerms[0,idx]
+            HPerturbed[stateInt,stateInt] += state[idx] * LGTerms[idx]
                 
     return HPerturbed
     
@@ -250,10 +327,18 @@ parser.add_argument('-n', type=int, default=0, help='radial order of the Laguerr
 parser.add_argument('--angmom', type=int, default=0, help='angular momentum (l) injected by the LG beam (default=0)')
 parser.add_argument('--omega', type=float, default=0.0, help='energy injected by the LG beam (default=0)')
 parser.add_argument('--epsilon', type=float, default=1.0, help='the intensity of the Laguerre-Gauss perturbation term as epsilon*O(t)')
+parser.add_argument('--epsilonspectrum', type=int, nargs='?', const=1, default=0, help='calculate the energy spectrum as a function of epsilon (laser power)')
+parser.add_argument('--epsilonsavestate', type=float, help='the groundstate of H = H_0 + eps*O_l to be saved during the --epsilonspectrum operation')
+parser.add_argument('--epsiloninit', type=float, default=0.1, help='initial value of epsilon for the --epsilonspectrum option (default=0.1)')
+parser.add_argument('--epsilonfinal', type=float, default=1.0, help='final value of epsilon for the --epsilonspectrum option (default=1.0)')
+parser.add_argument('--epsilonstep', type=float, default=0.1, help='step for the increase of epsilon for the --epsilonspectrum option (default=0.1)')
+parser.add_argument('--nbreigenstates', type=int, default=10, help='number of states to calculate when using the --epsilonspectrum or --epsilonevolutiontime option (default=10)')
+parser.add_argument('--savestates', type=int, nargs='?', const=1, default=0, help='save ALL the eigenstates calculated in the --epsilonspectrum option')
 parser.add_argument('--tmax', type=float, default=1.0, help='time at which the time evolution has to stop (default=1.0)')
 parser.add_argument('--dt', type=float, default=0.01, help='timestep (default=0.01)')
 parser.add_argument('--savetimestates', type=float, default=0.0, help='specify the timesteps at which the time evolved wavefunction should be saved in a file')
 parser.add_argument('--excfraction', type=int, nargs='?', const=1, default=0, help='calculate the excitation fraction 1 - |<psi_0|psi_t>|ˆ2')
+parser.add_argument('--epsilonevolutiontime', type=int, nargs='?', const=1, default=0, help='flag to run the H_0 + epsilon(t)*O_l(t) evolution (epsilon increases at each timestep starting from zero). Need to specify the laser parameters and the time evolution parameters --tmax, --dt.')
 # Optional
 parser.add_argument('--density', type=int, nargs='?', const=1, default=0, help='calculate the variation of the ground state local density in time (at the edge), i.e. rho(t) - rho(0)')
 parser.add_argument('--squares', type=int, default=2, help='specify which square ring of the lattice (starting with 1 for the inner center) has to be considered as the beginning of the "edge" for the calculation of the density variation (default=2, namely we consider from s=3 onwards)')
@@ -267,6 +352,7 @@ if args.U3 is not None: U3 = args.U3
 if args.r0 is not None: r0 = args.r0
 if args.alpha is not None: FluxDensity = args.alpha
 if args.conf is not None: trapConf = args.conf
+if args.epsilonsavestate is not None: epsSave = args.epsilonsavestate
 
 gamma = args.gamma
 angMom = args.angmom
@@ -284,6 +370,13 @@ if args.density == 0:
     densityFlag = False
 elif args.density == 1:
     densityFlag = True
+    
+if args.epsilonspectrum == 1:
+    nbrEigenstates = args.nbreigenstates
+    
+epsilonInit = args.epsiloninit
+epsilonFinal = args.epsilonfinal
+epsilonStep = args.epsilonstep
     
 s = args.squares
 
@@ -325,7 +418,6 @@ print('Loading the ground state vector...')
 fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N)
 groundStateVec = gm.LoadVector(fileName)
 
-LGTerms = GenerateLaguerreGaussTerms(L, r0, angMom, eps, omega, tMax, dt, n=nLG)
 #print(f'LGTerms shape = {np.shape(LGRadial)}')
 #print(LGTerms)
 
@@ -334,17 +426,6 @@ print(f'omega={omega}')
 print(f'angular momentum={angMom}')
 print(f'epsilon={eps}')
 print('----------------------------------')
-
-if omega != 0.0:
-    print(f'Building the H(t) for all times within t=[0,{tMax}]...')
-    start = time.time()
-    H = BuildAllTimesHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, tMax, dt, hardcore)
-    gm.TimePrint(start)
-else:
-    print(f'Building the perturbed Hamiltonian H = H_0 + O_l...')
-    start = time.time()
-    H = BuildZeroTimeHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, hardcore)
-    gm.TimePrint(start)
 
 """
 # CHECK: diagonalize H(t) at different times and see if the GS is periodic with omega of the laser
@@ -355,8 +436,6 @@ for ti in np.arange(0, int(tMax / dt)):
 """
 
 # Time evolution
-fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, excFrac=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega)
-print('Starting time evolution...')
 evolvedState = groundStateVec.copy()
 
 if densityFlag == True:
@@ -371,35 +450,89 @@ if densityFlag == True:
         groundStateEdgeDensity += CalcDensityTime(site, groundStateVec, basisVectors)
     for site in bulkSiteSquares:
         groundStateBulkDensity += CalcDensityTime(site, groundStateVec, basisVectors)
+        
+if args.epsilonspectrum != 0:
+    tMax = 0.0
+    print('---- Spectrum vs epsilon ----')
+    for epsilon in np.arange(epsilonInit,epsilonFinal,epsilonStep):
+        print(f'epsilon={epsilon}')
+        LGTerms = GenerateLaguerreGaussTerms(L, r0, angMom, epsilon, omega, tMax, dt, n=nLG)
+        H = BuildZeroTimeHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, hardcore)
+    
+        eVals, eVecs = HH.diagH(H, nbrEigenstates)
+        fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, spectrum=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=round(epsilon,2), timeEvolOmega=omega)
+        gm.SaveSpectrum(fileName, eVals)
+        
+        if args.savestates == 1:
+            for nEigenstate in np.arange(0, nbrEigenstates):
+                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N, r0=r0, timeEvolAngMom=angMom, timeEvolEps=round(epsilon,2), timeEvolOmega=omega)
+                gm.SaveVector(fileName, eVecs[:,nEigenstate])
+        
+        if args.epsilonsavestate is not None:
+            if round(epsilon,2) == epsSave:
+                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, r0=r0, timeEvolAngMom=angMom, timeEvolEps=round(epsilon,2), timeEvolOmega=omega)
+                gm.SaveVector(fileName, eVecs[0])
 
-for ti in np.arange(1, int(tMax / dt)):
+if (args.epsilonspectrum == 0) and (args.epsilonevolutiontime == 0):
     if omega != 0.0:
-        evolvedState = TimeEvolution(H[ti].tocsc(), evolvedState, dt)
+        LGTerms = GenerateLaguerreGaussTerms(L, r0, angMom, eps, omega, tMax, dt, n=nLG)
+        print(f'Building the H(t) for all times within t=[0,{tMax}]...')
+        start = time.time()
+        H = BuildAllTimesHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, tMax, dt, hardcore)
+        gm.TimePrint(start)
     else:
-        evolvedState = TimeEvolution(H.tocsc(), evolvedState, dt)
-        
-    if args.excfraction == 1:
-        excFraction = CalcExcitationFraction(evolvedState, groundStateVec, ti*dt)
-        gm.SaveTwoColFile(fileName, ti*dt, excFraction)
+        LGTerms = GenerateLaguerreGaussTerms(L, r0, angMom, eps, omega, 0.0, dt, n=nLG)
+        print(f'Building the perturbed Hamiltonian H = H_0 + O_l...')
+        start = time.time()
+        H = BuildZeroTimeHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, hardcore)
+        gm.TimePrint(start)
     
-    if args.savetimestates != 0.0:
-        if (ti*dt)%(args.savetimestates) == 0:
-            gm.SaveVector(fileName + f'_evolved_t_{ti*dt}', evolvedState)
+    print('Starting time evolution...')
     
-    if densityFlag == True:
-        for site in edgeSiteSquares:
-            evolvedEdgeDensity += CalcDensityTime(site, evolvedState, basisVectors)
-        for site in bulkSiteSquares:
-            evolvedBulkDensity += CalcDensityTime(site, evolvedState, basisVectors)
+    for ti in np.arange(1, int(tMax / dt)):
+        if omega != 0.0:
+            evolvedState = TimeEvolution(H[ti].tocsc(), evolvedState, dt)
+        else:
+            evolvedState = TimeEvolution(H.tocsc(), evolvedState, dt)
             
-        evolvedEdgeDensity = evolvedEdgeDensity - groundStateEdgeDensity
-        evolvedBulkDensity = evolvedBulkDensity - groundStateBulkDensity
+        if args.excfraction == 1:
+            fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, excFrac=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega)
+            excFraction = CalcExcitationFraction(evolvedState, groundStateVec, ti*dt)
+            gm.SaveTwoColFile(fileName, ti*dt, excFraction)
         
-        fileNameDensity = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, densityEvolution=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega)
-        gm.SaveTwoColFile(fileNameDensity+'_edge', ti*dt, evolvedEdgeDensity)
-        gm.SaveTwoColFile(fileNameDensity+'_bulk', ti*dt, evolvedBulkDensity)
+        if args.savetimestates != 0.0:
+            stepSave = int(tMax/args.savetimestates)
+            if ti%stepSave == 0:
+                fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, evolvedState=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega, timeEvolState=ti*dt)
+                gm.SaveVector(fileName, evolvedState)
         
-        evolvedEdgeDensity = 0
-        evolvedBulkDensity = 0
+        if densityFlag == True:
+            for site in edgeSiteSquares:
+                evolvedEdgeDensity += CalcDensityTime(site, evolvedState, basisVectors)
+            for site in bulkSiteSquares:
+                evolvedBulkDensity += CalcDensityTime(site, evolvedState, basisVectors)
+                
+            evolvedEdgeDensity = evolvedEdgeDensity - groundStateEdgeDensity
+            evolvedBulkDensity = evolvedBulkDensity - groundStateBulkDensity
+            
+            fileNameDensity = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, densityEvolution=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps, timeEvolOmega=omega)
+            gm.SaveTwoColFile(fileNameDensity+'_edge', ti*dt, evolvedEdgeDensity)
+            gm.SaveTwoColFile(fileNameDensity+'_bulk', ti*dt, evolvedBulkDensity)
+            
+            evolvedEdgeDensity = 0
+            evolvedBulkDensity = 0
+            
+if args.epsilonevolutiontime == 1:
+    print('---- Time evolution with increasing laser power at each timestep ----')
+    LGTerms = GenerateLaguerreGaussTermsIncreaseEpsilon(L, r0, angMom, epsilonInit, epsilonStep, omega, tMax, dt, n=nLG)
+    print(f'Building the H(t) for all times within t=[0,{tMax}]...')
+    start = time.time()
+    H = BuildAllTimesHamiltonian(H_0, LGTerms, basisVectors, intBasisVectors, tMax, dt, hardcore)
+    gm.TimePrint(start)
+    eps = epsilonInit
+    for ti in np.arange(0, int(tMax / dt)):
+        eps = eps + epsilonStep
     
-    
+        eVals, eVecs = HH.diagH(H[ti], nbrEigenstates)
+        fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, U3=U3, alpha=FluxDensity, N=N, spectrum=True, r0=r0, timeEvolAngMom=angMom, timeEvolEps=round(eps,2), timeEvolOmega=omega, timeEvolState=round(ti*dt,2))
+        gm.SaveSpectrum(fileName, eVals)

@@ -5,6 +5,7 @@ import argparse
 import time
 import math
 import HofstadterThreeBody as HHModule
+import GenericModule as gm
 
 def LoadSpectrum(fileName):
     """
@@ -206,17 +207,22 @@ parser.add_argument('--gamma', type=float, default=2, help='trap steepness (g) a
 parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=p/q')
 parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
 parser.add_argument('--nbreigenstates', type=int, help='number of eigenstates to be considered in the matrix elements')
+parser.add_argument('--quenchedstates', type=int, nargs='?', const=1, default=0, help='to calculate matrix elements with quenched states from H = H_0 + eps*O_l (laser parameters to be specified)')
+parser.add_argument('--angmom', type=int, help='angular momentum of the laser')
+parser.add_argument('--epsilon', type=float, help='power of the laser')
 args = parser.parse_args()
 
 if args.N is not None: N = args.N
 if args.L is not None: L = args.L
 if args.J is not None: J = args.J
-if args.U is not None: U3 = args.U
+if args.U is not None: U = args.U
 if args.U3 is not None: U3 = args.U3
 if args.r0 is not None: r0 = args.r0
 if args.alpha is not None: FluxDensity = args.alpha
 if args.conf is not None: trapConf = args.conf
 if args.nbreigenstates is not None: nbrEigenstate = args.nbreigenstates
+if args.angmom is not None: angMom = args.angmom
+if args.epsilon is not None: eps = args.epsilon
 
 gamma = args.gamma
 
@@ -264,14 +270,21 @@ statesWithNonZeroSites = np.nonzero(basisVectors)
 #print(statesWithNonZeroSites)
 
 # Load the eigenvectors
-print('Loading the eigenvectors...')
 eigVec = np.zeros((Dim,nbrEigenstate), dtype=complex)
-for d in np.arange(0,nbrEigenstate):
-    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, d, U3=U3, alpha=FluxDensity, N=N)
-    eigVec[:,d] = HHModule.LoadVector(fileName)
+if args.quenchedstates == 0:
+    print('Loading the eigenvectors...')
+    for d in np.arange(0,nbrEigenstate):
+        fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, d, U3=U3, alpha=FluxDensity, N=N)
+        eigVec[:,d] = gm.LoadVector(fileName)
+else:
+    print('Loading the quenched eigenvectors...')
+    print(f'angular momentum = {angMom}, epsilon={eps}')
+    for d in np.arange(0,nbrEigenstate):
+        fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, d, U3=U3, alpha=FluxDensity, N=N, r0=r0, timeEvolAngMom=angMom, timeEvolEps=eps)
+        eigVec[:,d] = gm.LoadVector(fileName)
 
 print('Loading the energy spectrum...')
-fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
+fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
 ESpectrum = LoadSpectrum(fileName)
 
 print('Running the LG excitations...')
@@ -279,13 +292,13 @@ for angMom in np.arange(-1,-11,-1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom, nLG)
     matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
-    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
-    SaveAbsorptionSpectrum(fileName + f'_r0_{r0}_neg', ESpectrum-ESpectrum[0], angMom, matElements)
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N, r0=r0)
+    SaveAbsorptionSpectrum(fileName + f'_neg', ESpectrum-ESpectrum[0], angMom, matElements)
     
 for angMom in np.arange(1,11,1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom)
     matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
-    fileName = HHModule.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N)
-    SaveAbsorptionSpectrum(fileName + f'_r0_{r0}_pos', ESpectrum-ESpectrum[0], angMom, matElements)
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N, r0=r0)
+    SaveAbsorptionSpectrum(fileName + f'_pos', ESpectrum-ESpectrum[0], angMom, matElements)
 
