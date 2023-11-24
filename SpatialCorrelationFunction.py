@@ -79,6 +79,8 @@ parser.add_argument('-r0', type=float, help='laser r0 parameter')
 parser.add_argument('--angmom', type=int, default=0, help='angular momentum (l) injected by the LG beam (default=0)')
 parser.add_argument('--omega', type=float, default=0.0, help='energy injected by the LG beam (default=0)')
 parser.add_argument('--epsilon', type=float, default=1.0, help='the intensity of the Laguerre-Gauss perturbation term as epsilon*O(t)')
+# Multiple correlation function calculation (adaptive from the maximum overlap eigenstates)
+parser.add_argument('--corrmultipleadaptive', type=int, nargs='?', const=1, default=0, help='calculates C_p for a bunch of states retrieved from the maxoverlaps file in StatesOverlap.py (specify all the right parameters necessary to find the _maxoverlaps file, i.e. -U, -U3, --neigenstate etc.)')
 args = parser.parse_args()
 
 if args.N is not None: N = args.N
@@ -141,18 +143,22 @@ else:
 
 print(f'Hilbert space dimension={Dim}')
 
-if corrVsFlux == False:
+if ((corrVsFlux == False) and (args.timedep == 0) and (args.corrmultipleadaptive == 0)):
     # Load the eigenvectors
     print('Loading the eigenvector n={nEigenstate}...')
     fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N)
     eigVec = gm.LoadVector(fileName)
 
     cFunction = np.zeros((Ns))
+    cFuncSum = 0.0
     for i in np.arange(0,Ns):
         cFunction[i] = SpatialCorrelation(i, eigVec, basisVectors, p)
+        cFuncSum = cFuncSum + cFunction[i]
         
     fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, corrFunction=p, N=N)
     SaveLocalDensity(fileName, cFunction, L)
+    cFuncSum = cFuncSum / N
+    print(f'Spatial sum of the correlation function C_{p}/N = {cFuncSum}')
     
 if corrVsFlux == True:
     for a in np.arange(alphaInit,alphaFinal,alphaStep):
@@ -190,3 +196,28 @@ if args.timedep == 1:
     fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N, r0=r0, timeEvolAngMom=angMom, evolvedState=True, timeEvolEps=eps, timeEvolOmega=omega, timeEvolState=round(ti*dt,2), corrFunction=p)
     gm.SaveArraysTwoColFile(fileName, np.array(time), np.array(corrFunc))
     print(f'Saving {p}-points correlation function for time t={ti*dt} on file {fileName}...')
+
+if args.corrmultipleadaptive == 1:
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N, maxOverlap=True)
+    U3vals, maxOverlapIndex, maxOverlaps = gm.LoadFileThree(fileName)
+    
+    corrFunc = []
+    for m in np.arange(0,len(U3vals)):
+        fileName = gm.GenFilename(hardcore, L, J, round(8.1-U3vals[m],6), trapConf, gamma, int(maxOverlapIndex[m]), U3=round(U3vals[m],6), alpha=FluxDensity, N=N)
+        eigVec = gm.LoadVector(fileName)
+        
+        print(f'U={round(8.1-U3vals[m],6)},U3={round(U3vals[m],6)}: calculating C_{p} for the n={int(maxOverlapIndex[m])} state...')
+        
+        cFunction = 0.
+        for i in np.arange(0,Ns):
+            cFunction = cFunction + SpatialCorrelation(i, eigVec, basisVectors, p)
+            
+        cFunction = cFunction / N
+        corrFunc.append(cFunction)
+
+    print(f'Correlation functions C_{p}:')
+    print(corrFunc)
+    
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, U3=U3, alpha=FluxDensity, N=N, corrFunction=p) + '_adaptive'
+    gm.SaveArraysTwoColFile(fileName, U3vals, corrFunc)
+    print(f'Correlation functions saved in ---> {fileName}')

@@ -151,6 +151,7 @@ def CalculateMatrixElements(eigVec, spectrum, LGCoeff, L, basisStrings):
                     #print(tmpMatDotVec)
                 tmpTransMatElem = tmpTransMatElem + ( np.vdot(eigVec[:,n],tmpMatDotVec) )
         matElements[n] = tmpTransMatElem
+        print(f'|_______ = {np.abs(matElements[n])**2} ')
         tmpTransMatElem = 0
         n = n + 1
         
@@ -158,7 +159,7 @@ def CalculateMatrixElements(eigVec, spectrum, LGCoeff, L, basisStrings):
 
     return np.abs(matElements)**2
     
-def CalculateMatrixElementsOptimized(eigVec, spectrum, LGCoeff, L, basisStrings, statesWithNonZeroSites):
+def CalculateMatrixElementsOptimized(eigVec, spectrum, LGCoeff, L, basisStrings, statesWithNonZeroSites, shift=0):
     """
     Optimize version of CalculateMatrixElements() using CreateLGMatrixOptimized()
     """
@@ -166,18 +167,20 @@ def CalculateMatrixElementsOptimized(eigVec, spectrum, LGCoeff, L, basisStrings,
     print('Calculating matrix elements...')
     Ns = L*L
     Dim = len(basisStrings)
-    groundState = eigVec[:,0]
+    groundState = eigVec[:,shift]
     deltaEnergies = spectrum - spectrum[0]
-    n = 0
+    print(deltaEnergies)
+    n = shift
     tmpTransMatElem = 0
     matElements = np.zeros(len(deltaEnergies), dtype=complex)
     nMat = CreateLGMatrixOptimized(LGCoeff, basisStrings, statesWithNonZeroSites)
     for dE in deltaEnergies:
-        print(f'Calculating mat elem <psi_{n}|O|psi_0>')
+        print(f'Calculating mat elem <psi_{n}|O|psi_{shift}>')
         if (dE != 0):
             tmpMatDotVec = nMat.dot(groundState)
             tmpTransMatElem = ( np.vdot(eigVec[:,n],tmpMatDotVec) )
-        matElements[n] = tmpTransMatElem
+        matElements[n-shift] = tmpTransMatElem
+        print(f'|_______ = {np.abs(matElements[n-shift])**2} ')
         tmpTransMatElem = 0
         n = n + 1
         
@@ -207,6 +210,7 @@ parser.add_argument('--gamma', type=float, default=2, help='trap steepness (g) a
 parser.add_argument('--alpha', type=float, help='magnetic flux density as alpha=p/q')
 parser.add_argument('--hardcore', type=int, nargs='?', const=1, default=0, help='hardcore bosons mode')
 parser.add_argument('--nbreigenstates', type=int, help='number of eigenstates to be considered in the matrix elements')
+parser.add_argument('--shiftinitialstate', type=int, default=0, help='index of the eigenstate that we want to substitute to the ground state (i.e. 0): instead of acting with the laser upon |psi_0> we will act on the new specified |psi_n> (default=0, i.e. GS)')
 parser.add_argument('--quenchedstates', type=int, nargs='?', const=1, default=0, help='to calculate matrix elements with quenched states from H = H_0 + eps*O_l (laser parameters to be specified)')
 parser.add_argument('--angmom', type=int, help='angular momentum of the laser')
 parser.add_argument('--epsilon', type=float, help='power of the laser')
@@ -230,6 +234,8 @@ if args.hardcore == 0:
     hardcore = False
 elif args.hardcore == 1:
     hardcore = True
+    
+shift = args.shiftinitialstate
 
 # Laser parameters
 nLG = args.n
@@ -286,19 +292,20 @@ else:
 print('Loading the energy spectrum...')
 fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, spectrum=True, U3=U3, alpha=FluxDensity, N=N)
 ESpectrum = LoadSpectrum(fileName)
+ESpectrum = ESpectrum[shift:]
 
 print('Running the LG excitations...')
 for angMom in np.arange(-1,-11,-1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom, nLG)
-    matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
-    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N, r0=r0)
+    matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites, shift=shift)
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, shift, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N, r0=r0)
     SaveAbsorptionSpectrum(fileName + f'_neg', ESpectrum-ESpectrum[0], angMom, matElements)
     
 for angMom in np.arange(1,11,1):
     print(f'Angular momentum l={angMom}')
     LGCoeff = GenerateLaguerreGauss(L, r0, angMom)
-    matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites)
-    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, 0, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N, r0=r0)
+    matElements = CalculateMatrixElementsOptimized(eigVec, ESpectrum, LGCoeff, L, basisVectors, statesWithNonZeroSites, shift=shift)
+    fileName = gm.GenFilename(hardcore, L, J, U, trapConf, gamma, shift, absSpectrum=True, U3=U3, alpha=FluxDensity, N=N, r0=r0)
     SaveAbsorptionSpectrum(fileName + f'_pos', ESpectrum-ESpectrum[0], angMom, matElements)
 

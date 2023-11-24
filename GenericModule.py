@@ -46,7 +46,7 @@ def Radius(i, j, c):
     """
     return np.sqrt((i-c)*(i-c) + (j-c)*(j-c))
     
-def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0, excFrac=False, timeEvolOmega=0.0, timeEvolAngMom=0, timeEvolEps=0.0, densityEvolution=False, evolvedState=False, timeEvolState=0.0):
+def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=False, spectrum=False, absSpectrum=False, localDensity=False, c4=False, U3=0.0, alpha=0.0, N=0, r0=0.0, corrFunction=0, excFrac=False, timeEvolOmega=0.0, timeEvolAngMom=0, timeEvolEps=0.0, densityEvolution=False, evolvedState=False, timeEvolState=0.0, maxOverlap=False):
     """
     Returns the filename string the saved eigenstates will have
     """
@@ -79,7 +79,7 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
         tmpString = f'_c_{trapConf}_g_{gamma}'
         fileName = fileName + tmpString
         
-    if (hamiltonian == False) and (spectrum == False) and (absSpectrum == False):
+    if (hamiltonian == False) and (spectrum == False):
         tmpString = f'_n_{nEigenstate}'
         fileName = fileName + tmpString
         
@@ -134,6 +134,10 @@ def GenFilename(hardcore, L, J, U, trapConf, gamma, nEigenstate, hamiltonian=Fal
         tmpString = f'_t_{timeEvolState}'
         fileName = fileName + tmpString
         
+    if maxOverlap == True:
+        tmpString = f'_maxoverlap'
+        fileName = fileName + tmpString
+        
     return fileName
     
 def SaveSpectrum(fileName, energies):
@@ -157,10 +161,32 @@ def SaveC4Spectrum(fileName, c4Sector, energies):
     with open(fileName,"ab") as fileDesc:
         np.savetxt(fileDesc, dataStack)
         
+def SaveOneColFile(fileName, array):
+    fileName = fileName + '.dat'
+    print(f'Saving the spectrum in: {fileName}')
+    with open(fileName,"w") as fileDesc:
+        np.savetxt(fileDesc, array)
+        
 def SaveArraysTwoColFile(fileName, xArray, yArray):
     fileName = fileName + '.dat'
     
     dataStack = np.column_stack((xArray, yArray))
+    
+    with open(fileName,"w") as fileDesc:
+        np.savetxt(fileDesc, dataStack)
+        
+def AppendArraysTwoColFile(fileName, xArray, yArray):
+    fileName = fileName + '.dat'
+    
+    dataStack = np.column_stack((xArray, yArray))
+    
+    with open(fileName,"ab") as fileDesc:
+        np.savetxt(fileDesc, dataStack)
+        
+def SaveArraysThreeColFile(fileName, xArray, yArray, zArray):
+    fileName = fileName + '.dat'
+    
+    dataStack = np.column_stack((xArray, yArray, zArray))
     
     with open(fileName,"w") as fileDesc:
         np.savetxt(fileDesc, dataStack)
@@ -240,3 +266,10 @@ def LoadFileTwo(fileName):
     fileName = fileName + '.dat'
     data = np.loadtxt(fileName)
     return data[:,0], data[:,1]
+    
+def LoadFileOne(fileName):
+    """
+    Load data from file containing one columns of data
+    """
+    fileName = fileName + '.dat'
+    return np.loadtxt(fileName)
