@@ -28,7 +28,8 @@ been implemented in experiments and can be useful for future applications in qua
 - Energy spectrum resolved in the C4 rotation symmetry
 - Absorption spectra calculated via transition matrix elements (from the ground state) $\bra{\psi_n}f_{n,l}\ket{\psi_0}$
 - Local particle density of a generic eigenstate of the Hamiltonian: $\bra{\psi_n}\hat n_i\ket{\psi_n}$
-- Time evolution protocol: ground state driven in time by a Laguerre-Gauss beam 
+- Time evolution protocol: ground state driven in time by a Laguerre-Gauss beam
+- Entanglement spectrum for a target state calculated with particle partition in real space
 
 ## Usage
 For info about usage just type 'python [name of the program].py -h'. Example of output below:
